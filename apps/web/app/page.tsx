@@ -1,102 +1,95 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
-import styles from "./page.module.css";
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { MessageSquare, HardDrive, Sparkles, Shield } from "lucide-react"
 
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
-
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
-
+export default function HomePage() {
   return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
-
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/web/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://turborepo.dev/docs?utm_source"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <MessageSquare className="h-6 w-6 text-primary" />
+            <span className="font-bold text-lg">AI Chat</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/login">
+              <Button variant="ghost">Sign in</Button>
+            </Link>
+            <Link href="/register">
+              <Button>Get Started</Button>
+            </Link>
+          </div>
         </div>
-        <Button appName="web" className={styles.secondary}>
-          Open alert
-        </Button>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.dev?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.dev →
-        </a>
+      </header>
+
+      {/* Hero */}
+      <section className="container mx-auto px-4 py-24 text-center">
+        <h1 className="text-4xl md:text-6xl font-bold mb-6 text-balance">Chat with AI, Store Your Files</h1>
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+          A powerful AI assistant combined with secure file storage. Upload documents, images, and more to get
+          intelligent insights.
+        </p>
+        <div className="flex items-center justify-center gap-4">
+          <Link href="/register">
+            <Button size="lg" className="gap-2">
+              <Sparkles className="h-5 w-5" />
+              Start for Free
+            </Button>
+          </Link>
+          <Link href="/login">
+            <Button size="lg" variant="outline">
+              Sign In
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="container mx-auto px-4 py-16">
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="text-center p-6">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="h-6 w-6 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">AI Chat Sessions</h3>
+            <p className="text-muted-foreground">
+              Create multiple chat sessions, upload files, and get intelligent responses powered by advanced AI.
+            </p>
+          </div>
+          <div className="text-center p-6">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <HardDrive className="h-6 w-6 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">File Storage</h3>
+            <p className="text-muted-foreground">
+              Organize your files in folders, preview images, and access your documents from anywhere.
+            </p>
+          </div>
+          <div className="text-center p-6">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Shield className="h-6 w-6 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Secure Auth</h3>
+            <p className="text-muted-foreground">
+              Sign in with email and password, OTP verification, or Google OAuth for seamless access.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t mt-16">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MessageSquare className="h-5 w-5" />
+              <span>AI Chat</span>
+            </div>
+            <p className="text-sm text-muted-foreground">Built with Next.js, tRPC, and Vercel Blob</p>
+          </div>
+        </div>
       </footer>
     </div>
-  );
+  )
 }
