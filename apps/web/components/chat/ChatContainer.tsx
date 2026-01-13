@@ -8,7 +8,7 @@ import { ChatInput } from "./ChatInput"
 import { useAuth } from "@/components/AuthContext"
 import { trpc } from "@/trpc/client"
 import { toast } from "sonner"
-import type { ChatSession } from "@marcx/db"
+import type { ChatSession } from "@marcx/db/schema"
 
 interface Attachment {
   name: string
@@ -25,12 +25,14 @@ export function ChatContainer() {
   const deleteSession = trpc.chat.deleteSession.useMutation()
   const updateTitle = trpc.chat.updateSessionTitle.useMutation()
 
-  const { messages, append, isLoading, setMessages } = useChat({
+  const { messages, status, setMessages } = useChat({
     api: "/api/chat",
     onError: (error) => {
-      toast.error("Failed to get response from AI")
+      toast.error("Failed to get response from AI");
     },
-  })
+  });
+
+  const isLoading = status === "streaming";
 
   // Create initial session on mount
   useEffect(() => {
@@ -89,18 +91,19 @@ export function ChatContainer() {
       setSessions((prev) => prev.map((s) => (s.id === currentSessionId ? { ...s, title } : s)))
     }
 
-    await append({
-      role: "user",
-      content,
-      experimental_attachments:
-        attachments.length > 0
-          ? attachments.map((a) => ({
-              name: a.name,
-              url: a.url,
-              contentType: a.type,
-            }))
-          : undefined,
-    })
+    toast.success("Message sent (mock)")
+    // await sendMessage({
+    //   role: "user",
+    //   content,
+    //   experimental_attachments:
+    //     attachments.length > 0
+    //       ? attachments.map((a) => ({
+    //           name: a.name,
+    //           url: a.url,
+    //           contentType: a.type,
+    //         }))
+    //       : undefined,
+    // })
   }
 
   return (
