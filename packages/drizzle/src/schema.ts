@@ -26,7 +26,8 @@ export const user = pgTable("User", {
   ...timestamps,
 });
 
-const credentialType = pgEnum("CredentialType", ["PASSWORD", "OAUTH"]);
+const credentialType = pgEnum("CredentialType", ["EMAIL", "OAUTH"]);
+const providerType = pgEnum("ProviderType", ["GOOGLE"]);
 
 export const credential = pgTable(
   "Credential",
@@ -38,6 +39,7 @@ export const credential = pgTable(
     type: credentialType("type").notNull(),
     identifier: citext("identifier").notNull(),
     secret: text("secret").notNull(),
+    provider: providerType("provider"),
     ...timestamps,
   },
   (table) => [index().on(table.userId)]
