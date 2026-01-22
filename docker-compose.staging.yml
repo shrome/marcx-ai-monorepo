@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  api:
+    image: ghcr.io/jasonteh/monorepo-api:staging
+    env_file:
+      - ../.env.staging
+    ports:
+      - "4000:4000"
+    restart: always
+
+  web:
+    image: ghcr.io/jasonteh/monorepo-web:staging
+    env_file:
+      - ../.env.staging
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: always

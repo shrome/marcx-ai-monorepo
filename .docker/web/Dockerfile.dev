@@ -1,0 +1,26 @@
+# Development stage for web
+FROM node:20-alpine
+ENV NODE_ENV=development
+
+WORKDIR /web-app
+
+RUN corepack enable
+
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+
+# Copy all package.json files
+COPY apps/web/package.json apps/web/
+COPY packages/drizzle/package.json packages/drizzle/
+COPY packages/eslint-config/package.json packages/eslint-config/
+COPY packages/typescript-config/package.json packages/typescript-config/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+RUN turbo build
+
+# Copy source code
+COPY . .
+
+EXPOSE 3000
+CMD ["pnpm", "--filter", "web", "dev"]

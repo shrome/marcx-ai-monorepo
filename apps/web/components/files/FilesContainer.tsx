@@ -2,73 +2,43 @@
 
 import { useState } from "react"
 import { useAuth } from "@/components/AuthContext"
-import { trpc } from "@/trpc/client"
-import { FileGrid } from "./FileGrid"
 import { FileUploadZone } from "./FileUploadZone"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { FolderPlus, ChevronRight, Home, HardDrive, MessageSquare, LogOut } from "lucide-react"
+import { HardDrive, MessageSquare, LogOut, Plus, Paperclip, X } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import type { File as FileType, Folder as FolderType } from "@marcx/db"
-import { cn } from "@/lib/utils"
 
-interface BreadcrumbItem {
-  id: string | null
+interface CaseRow {
+  id: string
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  updatedAt: Date
+}
+
+interface Attachment {
+  id: string
   name: string
+  url: string
+  size: string
+  type: string
 }
 
 export function FilesContainer() {
   const { user, logout } = useAuth()
   const router = useRouter()
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: "My Files" }])
-  const [files, setFiles] = useState<FileType[]>([])
-  const [folders, setFolders] = useState<FolderType[]>([])
-  const [newFolderDialog, setNewFolderDialog] = useState(false)
-  const [newFolderName, setNewFolderName] = useState("")
-
-  const createFolder = trpc.files.createFolder.useMutation()
-  const addFile = trpc.files.addFile.useMutation()
-  const deleteFile = trpc.files.deleteFile.useMutation()
-  const deleteFolder = trpc.files.deleteFolder.useMutation()
-  const renameFile = trpc.files.renameFile.useMutation()
+  const [cases, setCases] = useState<CaseRow[]>([])
+  const [files, setFiles] = useState<Attachment[]>([])
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
 
   const handleLogout = async () => {
     await logout()
     router.push("/login")
-  }
-
-  const handleOpenFolder = (folderId: string) => {
-    const folder = folders.find((f) => f.id === folderId)
-    if (folder) {
-      setCurrentFolderId(folderId)
-      setBreadcrumbs((prev) => [...prev, { id: folderId, name: folder.name }])
-    }
-  }
-
-  const handleBreadcrumbClick = (index: number) => {
-    const item = breadcrumbs[index]
-    setCurrentFolderId(item.id)
-    setBreadcrumbs((prev) => prev.slice(0, index + 1))
-  }
-
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) return
-    try {
-      const folder = await createFolder.mutateAsync({
-        name: newFolderName.trim(),
-        parentId: currentFolderId,
-      })
-      setFolders((prev) => [...prev, folder])
-      setNewFolderDialog(false)
-      setNewFolderName("")
-      toast.success("Folder created")
-    } catch (error) {
-      toast.error("Failed to create folder")
-    }
   }
 
   const handleUploadComplete = async (fileData: {
@@ -77,46 +47,36 @@ export function FilesContainer() {
     size: string
     type: string
   }) => {
-    try {
-      const file = await addFile.mutateAsync({
+    setFiles((prev) => [
+      {
+        id: crypto.randomUUID(),
         ...fileData,
-        folderId: currentFolderId,
-      })
-      setFiles((prev) => [file, ...prev])
-      toast.success("File uploaded")
-    } catch (error) {
-      toast.error("Failed to save file")
-    }
+      },
+      ...prev,
+    ])
+    toast.success("File uploaded")
   }
 
-  const handleDeleteFile = async (fileId: string) => {
-    try {
-      await deleteFile.mutateAsync({ fileId })
-      setFiles((prev) => prev.filter((f) => f.id !== fileId))
-      toast.success("File deleted")
-    } catch (error) {
-      toast.error("Failed to delete file")
+  const handleCreateCase = () => {
+    if (!title.trim()) {
+      toast.error("Title is required")
+      return
     }
-  }
 
-  const handleDeleteFolder = async (folderId: string) => {
-    try {
-      await deleteFolder.mutateAsync({ folderId })
-      setFolders((prev) => prev.filter((f) => f.id !== folderId))
-      toast.success("Folder deleted")
-    } catch (error) {
-      toast.error("Failed to delete folder")
+    const newCase: CaseRow = {
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      description: description.trim() || null,
+      status: "open",
+      priority: "medium",
+      updatedAt: new Date(),
     }
-  }
 
-  const handleRenameFile = async (fileId: string, name: string) => {
-    try {
-      await renameFile.mutateAsync({ fileId, name })
-      setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, name } : f)))
-      toast.success("File renamed")
-    } catch (error) {
-      toast.error("Failed to rename file")
-    }
+    setCases((prev) => [newCase, ...prev])
+    setTitle("")
+    setDescription("")
+    setIsCreateOpen(false)
+    toast.success("Case created")
   }
 
   return (
@@ -125,7 +85,7 @@ export function FilesContainer() {
       <aside className="w-64 border-r bg-card p-4 flex flex-col">
         <Link href="/" className="flex items-center gap-2 mb-6">
           <HardDrive className="h-6 w-6 text-primary" />
-          <span className="font-bold text-lg">My Files</span>
+          <span className="font-bold text-lg">Cases</span>
         </Link>
 
         <nav className="space-y-1 flex-1">
@@ -137,18 +97,24 @@ export function FilesContainer() {
           </Link>
           <Button variant="secondary" className="w-full justify-start gap-2">
             <HardDrive className="h-4 w-4" />
-            My Files
+            Cases
           </Button>
         </nav>
 
         <div className="border-t pt-4">
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
-              {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"}
+              {user?.name?.[0]?.toUpperCase() ||
+                user?.email?.[0]?.toUpperCase() ||
+                "?"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name || "User"}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+              <p className="text-sm font-medium truncate">
+                {user?.name || "User"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {user?.email}
+              </p>
             </div>
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
@@ -159,64 +125,156 @@ export function FilesContainer() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="border-b p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-1 text-sm">
-              {breadcrumbs.map((item, index) => (
-                <div key={item.id || "root"} className="flex items-center">
-                  {index > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground mx-1" />}
-                  <button
-                    onClick={() => handleBreadcrumbClick(index)}
-                    className={cn(
-                      "hover:text-primary transition-colors",
-                      index === breadcrumbs.length - 1 ? "font-medium" : "text-muted-foreground",
-                    )}
-                  >
-                    {index === 0 ? <Home className="h-4 w-4" /> : item.name}
-                  </button>
-                </div>
-              ))}
-            </div>
-            <Button onClick={() => setNewFolderDialog(true)} variant="outline" size="sm">
-              <FolderPlus className="h-4 w-4 mr-2" />
-              New Folder
-            </Button>
+        <header className="border-b p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">Cases</p>
+            <h1 className="text-xl font-semibold">Case Management</h1>
           </div>
-          <FileUploadZone onUploadComplete={handleUploadComplete} />
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Case
+          </Button>
         </header>
 
-        {/* File grid */}
-        <FileGrid
-          files={files.filter((f) => f.folderId === currentFolderId)}
-          folders={folders.filter((f) => f.parentId === currentFolderId)}
-          onOpenFolder={handleOpenFolder}
-          onDeleteFile={handleDeleteFile}
-          onDeleteFolder={handleDeleteFolder}
-          onRenameFile={handleRenameFile}
-        />
+        <section className="flex-1 overflow-auto">
+          <div className="p-4">
+            <div className="rounded-lg border bg-card">
+              <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b text-sm text-muted-foreground">
+                <span className="col-span-4">Title</span>
+                <span className="col-span-3">Status</span>
+                <span className="col-span-3">Priority</span>
+                <span className="col-span-2 text-right">Updated</span>
+              </div>
+              {cases.length === 0 ? (
+                <div className="p-6 text-center text-muted-foreground">
+                  No cases yet. Create your first case.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {cases.map((item) => (
+                    <button
+                      key={item.id}
+                      className="grid grid-cols-12 gap-4 px-4 py-3 items-center w-full text-left hover:bg-accent transition-colors"
+                      onClick={() => router.push(`/case/${item.id}`)}
+                    >
+                      <div className="col-span-4">
+                        <p className="font-medium text-sm leading-tight">
+                          {item.title}
+                        </p>
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="col-span-3">
+                        <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium">
+                          {item.status}
+                        </span>
+                      </div>
+                      <div className="col-span-3 capitalize text-sm">
+                        {item.priority}
+                      </div>
+                      <div className="col-span-2 text-right text-sm text-muted-foreground">
+                        {item.updatedAt.toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* New folder dialog */}
-      <Dialog open={newFolderDialog} onOpenChange={setNewFolderDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create new folder</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Folder name"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewFolderDialog(false)}>
-              Cancel
+      {/* Right sidebar create panel */}
+      {/* Right sidebar create panel with slide-in animation */}
+      <div
+        className={`fixed inset-0 z-40 ${isCreateOpen ? "pointer-events-auto" : "pointer-events-none"}`}
+        aria-hidden={!isCreateOpen}
+      >
+        <div
+          className={`absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-200 ${
+            isCreateOpen ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={() => setIsCreateOpen(false)}
+        />
+        <aside
+          className={`absolute inset-y-0 right-0 flex flex-col w-full sm:w-[420px] h-full bg-card border-l shadow-xl transition-transform duration-200 ease-out ${
+            isCreateOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div>
+              <p className="text-xs uppercase text-muted-foreground">Create</p>
+              <h2 className="text-lg font-semibold">New Case</h2>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCreateOpen(false)}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
             </Button>
-            <Button onClick={handleCreateFolder}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div className="p-4 space-y-5 flex-1 overflow-y-auto">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Title</label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Case title"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Short description"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Paperclip className="h-4 w-4" /> Attachments
+              </div>
+              <FileUploadZone onUploadComplete={handleUploadComplete} />
+              {files.length > 0 && (
+                <div className="border rounded-md divide-y text-sm">
+                  {files.map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between px-3 py-2"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">{f.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {f.type}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {f.size}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t px-4 py-3 bg-card/90">
+            {/* <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button> */}
+            <Button onClick={handleCreateCase}>Create</Button>
+          </div>
+        </aside>
+      </div>
     </div>
-  )
+  );
 }

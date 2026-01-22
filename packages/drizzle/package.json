@@ -12,7 +12,9 @@
   "scripts": {
     "dev": "tsc --watch",
     "build": "tsc",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "migrate": "drizzle-kit migrate",
+    "generate": "drizzle-kit generate"
   },
   "dependencies": {
     "drizzle-orm": "0.45.1"

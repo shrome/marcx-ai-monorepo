@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: monorepo_db
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: app_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: .docker/backend/Dockerfile.dev
+    container_name: monorepo_backend
+    volumes:
+      - .:/app/backend
+      - /app/backend/node_modules
+      - /app/backend/dist
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: .docker/web/Dockerfile.dev
+    container_name: monorepo_web
+    volumes:
+      - .:/app/web
+      - /app/web/node_modules
+      - /app/web/.turbo
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

@@ -116,10 +116,10 @@ export function ChatSidebar({
       </ScrollArea>
 
       <div className="border-t p-4 space-y-2">
-        <Link href="/files">
+        <Link href="/case">
           <Button variant="ghost" className="w-full justify-start gap-2">
             <HardDrive className="h-4 w-4" />
-            My Files
+            Cases
           </Button>
         </Link>
         <div className="flex items-center gap-2 px-3 py-2">
