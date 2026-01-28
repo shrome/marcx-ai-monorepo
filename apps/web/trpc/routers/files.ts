@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { router, protectedProcedure } from "../init"
 import { mockStore, generateId } from "@/lib/db/mock-store"
-import type { File, Folder } from "@marcx/db/schema";
+import type { File, Folder } from "@marcx/db";
 
 export const filesRouter = router({
   // Get all files and folders for user

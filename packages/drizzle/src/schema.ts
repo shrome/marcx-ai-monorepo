@@ -2,7 +2,7 @@
 // This is ready to connect to a real PostgreSQL database when available
 
 import { pgTable, text, timestamp, uuid, boolean, jsonb, pgEnum, customType, varchar, index, primaryKey, integer } from "drizzle-orm/pg-core"
-import { relations } from "drizzle-orm"
+import { relations } from "drizzle-orm";
 
 
 export const timestamps = {
@@ -12,7 +12,21 @@ export const timestamps = {
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 
-const role = pgEnum("Role", ["ADMIN", "COMPANY_USER", "COMPANY_OWNER"]);
+// Enums
+export const roleEnum = pgEnum("Role", ["ADMIN", "COMPANY_USER", "COMPANY_OWNER"]);
+export const credentialTypeEnum = pgEnum("CredentialType", ["EMAIL", "OAUTH"]);
+export const providerTypeEnum = pgEnum("ProviderType", ["GOOGLE"]);
+export const categoryEnum = pgEnum("Category",[
+  "ACCOUNTING",
+  "MARKETING"
+])
+export const verificationPurposeEnum = pgEnum("VerificationPurpose", [
+  "EMAIL_VERIFICATION",
+  "PASSWORD_RESET",
+  "LOGIN"
+]);
+export const sessionTypeEnum = pgEnum("SessionType", ["CHAT", "CASE"]);
+export const chatRoleEnum = pgEnum("ChatRole", ["USER", "ASSISTANT"]);
 
 // Users table
 export const user = pgTable("User", {
@@ -22,12 +36,10 @@ export const user = pgTable("User", {
   name: text("name"),
   image: text("image"),
   emailVerified: boolean("emailVerified").default(false),
-  role: role("role").notNull().default("COMPANY_USER"),
+  role: roleEnum("role").notNull().default("COMPANY_USER"),
   ...timestamps,
 });
 
-const credentialType = pgEnum("CredentialType", ["EMAIL", "OAUTH"]);
-const providerType = pgEnum("ProviderType", ["GOOGLE"]);
 
 export const credential = pgTable(
   "Credential",
@@ -36,19 +48,15 @@ export const credential = pgTable(
     userId: uuid("userId")
       .references(() => user.id)
       .notNull(),
-    type: credentialType("type").notNull(),
+    type: credentialTypeEnum("type").notNull(),
     identifier: citext("identifier").notNull(),
-    secret: text("secret").notNull(),
-    provider: providerType("provider"),
+    secret: text("secret"),
+    provider: providerTypeEnum("provider"),
     ...timestamps,
   },
   (table) => [index().on(table.userId)]
 );
 
-const category = pgEnum("Category",[
-  "ACCOUNTING",
-  "MARKETING",
-])
 
 // Company table
 export const company = pgTable("Company", {
@@ -57,22 +65,17 @@ export const company = pgTable("Company", {
   image: text("image"),
   website: text("website"),
   description: text("description"),
-  category: category("category").notNull(),
+  category: categoryEnum("category").notNull(),
   ...timestamps,
 });
 
-const verificationPurpose = pgEnum("VerificationPurpose", [
-  "EMAIL_VERIFICATION",
-  "PASSWORD_RESET",
-  "LOGIN",
-]);
 
 export const verificationToken = pgTable("VerificationToken", {
   id: uuid("id").primaryKey().defaultRandom(),
   credentialId: uuid("credentialId")
     .references(() => credential.id)
     .notNull(),
-  purpose: verificationPurpose("purpose").notNull(),
+  purpose: verificationPurposeEnum("purpose").notNull(),
   tokenHash: text("tokenHash").notNull(),
   attempts: integer("attempts").default(0),
   expiresAt: timestamp("expiresAt").notNull(),
@@ -80,12 +83,10 @@ export const verificationToken = pgTable("VerificationToken", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export const sessionType = pgEnum("SessionType", ["CHAT", "CASE"]);
-
 // Chat sessions
 export const session = pgTable("ChatSession", {
   id: uuid("id").primaryKey().defaultRandom(),
-  type: sessionType("type").notNull().default("CHAT"),
+  type: sessionTypeEnum("type").notNull().default("CHAT"),
   companyId: uuid("companyId")
     .references(() => company.id)
     .notNull(),
@@ -108,8 +109,6 @@ export const caseInfo = pgTable("CaseInfo", {
   ...timestamps,
 });
 
-export const chatRoles = pgEnum("ChatRoles", ["USER", "ASSISTANT"]);
-
 // Chat messages
 export const chatMessage = pgTable("ChatMessage", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -119,7 +118,7 @@ export const chatMessage = pgTable("ChatMessage", {
   userId: uuid("userId")
     .references(() => user.id)
     .notNull(),
-  role: chatRoles("role").notNull(),
+  role: chatRoleEnum("role").notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

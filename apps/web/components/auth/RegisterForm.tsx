@@ -2,61 +2,69 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAuth } from "@/components/AuthContext"
+import { useRegister, useVerifyRegistrationOtp, useCurrentUser } from "@/hooks/useAuthQueries"
+import { CompanyForm } from "./CompanyForm"
 import { toast } from "sonner"
-import { Loader2, Mail, Lock, User, Chrome } from "lucide-react"
+import { Loader2, Mail, User } from "lucide-react"
 import Link from "next/link"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 
 export function RegisterForm() {
   const router = useRouter()
-  const { register, verifyOtp } = useAuth()
+  const registerMutation = useRegister()
+  const verifyOtpMutation = useVerifyRegistrationOtp()
+  const { data: currentUser } = useCurrentUser()
 
-  const [isLoading, setIsLoading] = useState(false)
   const [step, setStep] = useState<"register" | "verify">("register")
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
-  const [password, setPassword] = useState("")
   const [otp, setOtp] = useState("")
+
+  // Redirect if already logged in AND has company
+  useEffect(() => {
+    if (currentUser?.user && currentUser.user.companyId) {
+      router.push("/chat")
+    } else if (currentUser?.user && !currentUser.user.companyId) {
+      router.push("/register/company");
+    }
+  }, [currentUser, router])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     try {
-      const result = await register(email, name, password)
-      toast.success(result.message)
+      await registerMutation.mutateAsync({ email, name })
+      toast.success("Registration successful! Please verify your email.")
       setStep("verify")
     } catch (error: any) {
-      toast.error(error.message || "Registration failed")
-    } finally {
-      setIsLoading(false)
+      toast.error(error?.message || "Registration failed")
     }
   }
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     if (otp.length !== 6) return
-    setIsLoading(true)
     try {
-      await verifyOtp(email, otp)
-      toast.success("Account verified! Welcome!")
-      router.push("/chat")
-    } catch (error) {
-      toast.error("Invalid verification code")
-    } finally {
-      setIsLoading(false)
+      const result = await verifyOtpMutation.mutateAsync({ email, code: otp })
+      toast.success("Email verified! Welcome!")
+      
+      // Check if user needs company setup
+      if (result.requiresCompanySetup) {
+        router.push("/register/company")
+      } else {
+        router.push("/chat")
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Invalid verification code")
     }
   }
 
-  const handleGoogleSignup = () => {
-    toast.info("Google OAuth requires NextAuth setup with GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET")
-  }
+  const isLoading = registerMutation.isPending || verifyOtpMutation.isPending
 
   if (step === "verify") {
     return (
@@ -81,7 +89,7 @@ export function RegisterForm() {
             </div>
             <p className="text-center text-sm text-muted-foreground">Check browser console for demo OTP code</p>
             <Button type="submit" className="w-full" disabled={isLoading || otp.length !== 6}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {verifyOtpMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Verify Email
             </Button>
           </form>
@@ -128,42 +136,11 @@ export function RegisterForm() {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-10"
-                minLength={6}
-                required
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
-          </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create account
           </Button>
         </form>
-
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-          </div>
-        </div>
-
-        <Button variant="outline" className="w-full bg-transparent" onClick={handleGoogleSignup}>
-          <Chrome className="mr-2 h-4 w-4" />
-          Google
-        </Button>
       </CardContent>
       <CardFooter className="flex justify-center">
         <p className="text-sm text-muted-foreground">

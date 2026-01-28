@@ -1,0 +1,1 @@
+ALTER TABLE "Credential" ALTER COLUMN "secret" DROP NOT NULL;

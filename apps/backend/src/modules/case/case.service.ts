@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateCaseDto, UpdateCaseDto } from './dto/case.dto';
-import { db } from '../../db';
-import { eq, and } from '@marcx/db';
+import { db, eq, and } from '@marcx/db';
 import { session, caseInfo, file } from '@marcx/db/schema';
 import { FileStorageService } from '../../services/file-storage.service';
 

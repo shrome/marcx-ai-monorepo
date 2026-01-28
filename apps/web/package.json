@@ -11,8 +11,8 @@
   "dependencies": {
     "@ai-sdk/react": "3.0.33",
     "@aws-sdk/client-rds-data": "latest",
-    "@marcx/db": "workspace:*",
     "@hookform/resolvers": "^3.10.0",
+    "@marcx/db": "workspace:*",
     "@opentelemetry/api": "latest",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
@@ -47,6 +47,7 @@
     "@trpc/server": "11.8.1",
     "ai": "6.0.31",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "4.1.0",

@@ -1,6 +1,11 @@
-import { drizzle } from '@marcx/db';
 import { Pool } from 'pg';
-import * as schema from '@marcx/db/schema';
+import * as schema from './schema';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import dotenv from "dotenv";
+
+dotenv.config({
+  path: "../../.env",
+});
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 

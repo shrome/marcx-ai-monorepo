@@ -7,25 +7,13 @@ export class RegisterDto {
 
   @IsString()
   @IsNotEmpty()
-  @MinLength(6)
-  password: string;
-
-  @IsString()
-  name?: string;
-
-  @IsString()
-  companyId?: string;
+  name: string;
 }
 
 export class LoginDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MinLength(6)
-  password: string;
 }
 
 export class SendOtpDto {

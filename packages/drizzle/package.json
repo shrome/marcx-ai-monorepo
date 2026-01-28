@@ -5,26 +5,28 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
     },
     "./schema": {
-      "types": "./src/schema.ts",
-      "default": "./dist/schema.js"
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.mjs",
+      "require": "./dist/schema.cjs"
     }
   },
   "scripts": {
-    "dev": "tsc --watch",
-    "build": "tsc",
-    "check": "tsc --noEmit",
-    "migrate": "drizzle-kit migrate",
-    "generate": "drizzle-kit generate"
+    "build": "tsup"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "drizzle-orm": "0.45.1"
   },
   "devDependencies": {
+    "@types/node": "^25.0.10",
+    "@types/pg": "^8.16.0",
     "drizzle-kit": "^0.31.8",
+    "tsup": "8.5.1",
     "typescript": "5.9.2"
   }
 }

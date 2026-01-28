@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16 
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file: .env
+    volumes:
+      - ./docker/postgresql/data:/data
+    ports:
+      - 15432:5432
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    container_name: pgbouncer
+    env_file: .env
+    volumes:
+      - ./pgbouncer:/etc/pgbouncer
+    ports:
+      - "16432:${PGBOUNCER_PORT}"
+    depends_on:
+      - postgres
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - 16379:6379
+    volumes:
+      - ./docker/redis/data:/data
+
+  # backend:
+  #   build:
+  #     context: .
+  #     dockerfile: .docker/backend/Dockerfile
+  #   env_file: .env
+  #   container_name: backend
+  #   depends_on:
+  #     - pgbouncer
+  #     - redis
+  #   ports:
+  #     - 4000:4000
+
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: .docker/web/Dockerfile
+  #   container_name: web
+  #   env_file: .env
+  #   ports:
+  #     - 3000:3000
+

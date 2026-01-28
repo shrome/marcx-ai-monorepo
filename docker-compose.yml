@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    env_file: .env
+    volumes:
+      - pg:/var/lib/postgresql/data
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    restart: always
+    env_file: .env
+    depends_on:
+      - postgres
+
+  redis:
+    image: redis:7
+    restart: always
+
+  api:
+    image: ghcr.io/your-org/api:latest
+    restart: always
+    env_file: .env
+    depends_on:
+      - pgbouncer
+      - redis
+
+  web:
+    image: ghcr.io/your-org/web:latest
+    restart: always
+    env_file: .env
+
+  caddy:
+    image: caddy:2
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./caddy/Caddyfile
+      - caddy:/data
+    depends_on:
+      - web
+      - api
+

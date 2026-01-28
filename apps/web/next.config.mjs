@@ -7,6 +7,7 @@ const nextConfig = {
     unoptimized: true,
   },
   transpilePackages: ["@marcx/db"],
+  output: "standalone",
 }
 
 export default nextConfig

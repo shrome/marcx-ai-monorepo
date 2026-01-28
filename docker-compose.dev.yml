@@ -1,51 +1,35 @@
 version: "3.9"
 
 services:
-  db:
-    image: postgres:16
-    container_name: monorepo_db
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: dev
-      POSTGRES_PASSWORD: dev
-      POSTGRES_DB: app_dev
+      POSTGRES_DB: app_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgresql/data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  backend:
-    build:
-      context: .
-      dockerfile: .docker/backend/Dockerfile.dev
-    container_name: monorepo_backend
-    volumes:
-      - .:/app/backend
-      - /app/backend/node_modules
-      - /app/backend/dist
-    env_file:
-      - .env.local
-    environment:
-      - NODE_ENV=development
-    depends_on:
-      - db
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
     ports:
-      - "4000:4000"
-
-  web:
-    build:
-      context: .
-      dockerfile: .docker/web/Dockerfile.dev
-    container_name: monorepo_web
+      - "16379:6379"
     volumes:
-      - .:/app/web
-      - /app/web/node_modules
-      - /app/web/.turbo
-    env_file:
-      - .env.local
-    environment:
-      - NODE_ENV=development
-    ports:
-      - "3000:3000"
-
-volumes:
-  pgdata:
+      - ./docker/redis/data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

@@ -3,9 +3,8 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { db } from '../../db';
-import { eq } from '@marcx/db';
-import { company } from '@marcx/db/schema';
+import { db, eq } from '@marcx/db';
+import { company, user } from '@marcx/db/schema';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 
 @Injectable()
@@ -17,6 +16,33 @@ export class CompanyService {
       .returning();
 
     return newCompany;
+  }
+
+  async register(createCompanyDto: CreateCompanyDto, userId: string) {
+    // Create the company
+    const [newCompany] = await db
+      .insert(company)
+      .values(createCompanyDto)
+      .returning();
+
+    // Update the user's companyId
+    const [updatedUser] = await db
+      .update(user)
+      .set({ companyId: newCompany.id })
+      .where(eq(user.id, userId))
+      .returning();
+
+    return {
+      company: newCompany,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        emailVerified: updatedUser.emailVerified,
+        companyId: updatedUser.companyId,
+      },
+    };
   }
 
   async findAll() {

@@ -1,21 +1,31 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { trpc } from "@/trpc/client"
+import {
+  useLogin,
+  useRegister,
+  useSendOtp,
+  useLogout,
+  useCurrentUser,
+} from "@/hooks/useAuthQueries"
+import type { AuthResponse } from "@/lib/backend/types"
 
 interface User {
   id: string
   email: string
-  name: string | null
+  name?: string | null
+  image?: string | null
+  role: string
+  emailVerified: boolean
+  companyId?: string | null
 }
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, name: string, password: string) => Promise<{ message: string }>
+  login: (email: string) => Promise<void>
+  register: (email: string, name: string) => Promise<{ message: string }>
   sendOtp: (email: string) => Promise<void>
-  verifyOtp: (email: string, code: string) => Promise<void>
   logout: () => Promise<void>
   setUser: (user: User | null) => void
 }
@@ -24,59 +34,49 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
 
-  const loginMutation = trpc.auth.login.useMutation()
-  const registerMutation = trpc.auth.register.useMutation()
-  const sendOtpMutation = trpc.auth.sendOtp.useMutation()
-  const verifyOtpMutation = trpc.auth.verifyOtp.useMutation()
-  const logoutMutation = trpc.auth.logout.useMutation()
+  const loginMutation = useLogin()
+  const registerMutation = useRegister()
+  const sendOtpMutation = useSendOtp()
+  const logoutMutation = useLogout()
+  const { data: currentUserData, isLoading: isLoadingUser } = useCurrentUser()
 
   useEffect(() => {
-    // Check for stored user in localStorage (demo only)
-    const stored = localStorage.getItem("demo_user")
-    if (stored) {
-      setUser(JSON.parse(stored))
+    // Sync user state with current user query
+    if (currentUserData?.user) {
+      setUser(currentUserData.user)
+    } else {
+      setUser(null)
     }
-    setIsLoading(false)
-  }, [])
+  }, [currentUserData])
 
-  const login = async (email: string, password: string) => {
-    const result = await loginMutation.mutateAsync({ email, password })
-    setUser(result.user)
-    localStorage.setItem("demo_user", JSON.stringify(result.user))
+  const login = async (email: string) => {
+    // Login now sends OTP, doesn't return user immediately
+    await loginMutation.mutateAsync({ email })
   }
 
-  const register = async (email: string, name: string, password: string) => {
-    const result = await registerMutation.mutateAsync({ email, name, password })
-    return { message: result.message }
+  const register = async (email: string, name: string) => {
+    const result = await registerMutation.mutateAsync({ email, name })
+    return { message: result.message || "Registration successful! Please verify your email." }
   }
 
   const sendOtp = async (email: string) => {
     await sendOtpMutation.mutateAsync({ email })
   }
 
-  const verifyOtp = async (email: string, code: string) => {
-    const result = await verifyOtpMutation.mutateAsync({ email, code })
-    setUser(result.user)
-    localStorage.setItem("demo_user", JSON.stringify(result.user))
-  }
-
   const logout = async () => {
     await logoutMutation.mutateAsync()
     setUser(null)
-    localStorage.removeItem("demo_user")
   }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isLoading,
+        isLoading: isLoadingUser,
         login,
         register,
         sendOtp,
-        verifyOtp,
         logout,
         setUser,
       }}

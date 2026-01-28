@@ -8,7 +8,7 @@ import { ChatInput } from "./ChatInput"
 import { useAuth } from "@/components/AuthContext"
 import { trpc } from "@/trpc/client"
 import { toast } from "sonner"
-import type { ChatSession } from "@marcx/db/schema"
+import type { ChatSession } from "@marcx/db"
 
 interface Attachment {
   name: string

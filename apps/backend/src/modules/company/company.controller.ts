@@ -31,6 +31,14 @@ export class CompanyController {
     return this.companyService.create(createCompanyDto);
   }
 
+  @Post('register')
+  register(
+    @Body() createCompanyDto: CreateCompanyDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.companyService.register(createCompanyDto, req.user.id);
+  }
+
   @Get()
   findAll() {
     return this.companyService.findAll();

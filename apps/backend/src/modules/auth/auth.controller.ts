@@ -1,7 +1,29 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Response,
+  Get,
+} from '@nestjs/common';
+import * as express from 'express';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, SendOtpDto, VerifyOtpDto, RefreshTokenDto, RevokeTokenDto } from './dto/auth.dto';
+import { UserService } from '../user/user.service';
+import {
+  RegisterDto,
+  LoginDto,
+  SendOtpDto,
+  VerifyOtpDto,
+} from './dto/auth.dto';
 import { AuthGuard } from './guards/auth.guard';
+
+interface RequestWithCookies extends Request {
+  cookies?: {
+    accessToken?: string;
+    refreshToken?: string;
+  };
+}
 
 interface RequestWithUser extends Request {
   user: {
@@ -9,11 +31,18 @@ interface RequestWithUser extends Request {
     email: string;
     role: string;
   };
+  cookies?: {
+    accessToken?: string;
+    refreshToken?: string;
+  };
 }
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+  ) {}
 
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
@@ -30,33 +59,118 @@ export class AuthController {
     return this.authService.sendOtp(sendOtpDto);
   }
 
-  @Post('otp/verify')
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    return this.authService.verifyOtp(verifyOtpDto);
+  @Post('register/verify')
+  async verifyRegistrationOtp(
+    @Body() verifyOtpDto: VerifyOtpDto,
+    @Response({ passthrough: true }) res: express.Response,
+  ) {
+    const result = await this.authService.verifyRegistrationOtp(verifyOtpDto);
+
+    // Set httpOnly cookies with tokens
+    res.cookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return result;
+  }
+
+  @Post('login/verify')
+  async verifyLoginOtp(
+    @Body() verifyOtpDto: VerifyOtpDto,
+    @Response({ passthrough: true }) res: express.Response,
+  ) {
+    const result = await this.authService.verifyLoginOtp(verifyOtpDto);
+
+    // Set httpOnly cookies with tokens
+    res.cookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return result;
   }
 
   @Post('refresh')
-  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshAccessToken(refreshTokenDto.refreshToken);
+  async refreshToken(
+    @Request() req: RequestWithCookies,
+    @Response({ passthrough: true }) res: express.Response,
+  ) {
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (!refreshToken) {
+      throw new Error('No refresh token found');
+    }
+
+    const result = await this.authService.refreshAccessToken(refreshToken);
+
+    // Set new access token cookie
+    res.cookie('accessToken', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    return { message: 'Token refreshed successfully' };
   }
 
   @Post('revoke')
   @UseGuards(AuthGuard)
   async revokeToken(
-    @Body() revokeTokenDto: RevokeTokenDto,
     @Request() req: RequestWithUser,
+    @Response({ passthrough: true }) res: express.Response,
   ) {
-    return this.authService.revokeRefreshToken(
-      revokeTokenDto.refreshToken,
-      req.user.id,
-    );
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (refreshToken) {
+      await this.authService.revokeRefreshToken(refreshToken, req.user.id);
+    }
+
+    // Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    return { message: 'Token revoked successfully' };
   }
 
   @Post('revoke-all')
   @UseGuards(AuthGuard)
-  async revokeAllTokens(@Request() req: RequestWithUser) {
-    return this.authService.revokeAllRefreshTokens(req.user.id);
+  async revokeAllTokens(
+    @Request() req: RequestWithUser,
+    @Response({ passthrough: true }) res: express.Response,
+  ) {
+    await this.authService.revokeAllRefreshTokens(req.user.id);
+
+    // Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    return { message: 'All tokens revoked successfully' };
+  }
+
+  @Get('me')
+  @UseGuards(AuthGuard)
+  async getCurrentUser(@Request() req: RequestWithUser) {
+    const user = await this.userService.findOne(req.user.id);
+    return { user };
   }
 }
-
-

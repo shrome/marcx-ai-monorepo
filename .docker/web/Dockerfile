@@ -1,24 +1,40 @@
+# -----------------------------------------------------
+# Base
+# -----------------------------------------------------
 FROM node:20-alpine AS base
+RUN corepack enable
 WORKDIR /app
 
+# -----------------------------------------------------
+# Dependencies (cached)
+# -----------------------------------------------------
 FROM base AS deps
-COPY package.json pnpm-lock.yaml ./
-COPY apps/web/package.json apps/web/
-COPY packages/db/package.json packages/db/
-RUN corepack enable && pnpm install --frozen-lockfile
 
-FROM deps AS build
-COPY . .
-RUN pnpm turbo run build --filter=web...
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps ./apps
+COPY packages ./packages
 
-FROM node:20-alpine AS runner
+RUN pnpm install --frozen-lockfile
+
+# -----------------------------------------------------
+# Build Next.js
+# -----------------------------------------------------
+FROM deps AS build-web
+WORKDIR /app/apps/web
+RUN pnpm build
+
+# -----------------------------------------------------
+# Runtime: Next.js
+# -----------------------------------------------------
+FROM node:20-alpine AS web
 WORKDIR /app
+
 ENV NODE_ENV=production
 
-COPY --from=build /app/apps/web/.next ./.next
-COPY --from=build /app/apps/web/public ./public
-COPY --from=build /app/apps/web/package.json ./
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=build-web /app/apps/web/.next/standalone ./
+COPY --from=build-web /app/apps/web/.next/static ./.next/static
+COPY --from=build-web /app/apps/web/public ./public
 
 EXPOSE 3000
-CMD ["pnpm", "next", "start"]
+CMD ["node", "server.js"]
+

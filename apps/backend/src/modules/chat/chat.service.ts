@@ -4,8 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { CreateMessageDto } from './dto/chat.dto';
-import { db } from '../../db';
-import { eq, and } from '@marcx/db';
+import { db, eq, and } from '@marcx/db';
 import { chatMessage, session, file } from '@marcx/db/schema';
 import { FileStorageService } from '../../services/file-storage.service';
 

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSessionDto, UpdateSessionDto } from './dto/session.dto';
-import { db } from '../../db';
-import { eq, and } from '@marcx/db';
+
+import { db, eq, and } from '@marcx/db';
 import { session } from '@marcx/db/schema';
 
 @Injectable()
