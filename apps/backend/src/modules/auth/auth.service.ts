@@ -395,6 +395,8 @@ export class AuthService {
       tokenHash: string;
     }>(reverseKey);
 
+
+    console.log('lookupData', lookupData, refreshTokenValue);
     if (!lookupData) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }

@@ -43,9 +43,7 @@ export function AuthGuardProvider({
     if (requireAuth) {
       // No user session - logout and redirect to login
       if (!currentUser?.user) {
-        logoutMutation.mutateAsync().then(() => {
-          router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
-        })
+        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
         return
       }
 

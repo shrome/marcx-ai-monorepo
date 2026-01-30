@@ -78,11 +78,4 @@ export class AuthClient extends Backend {
   async logout(): Promise<void> {
     await this.revokeAllTokens();
   }
-
-  /**
-   * Get the current authenticated user
-   */
-  async getCurrentUser(): Promise<AuthResponse> {
-    return this.get<AuthResponse>('/auth/me');
-  }
 }

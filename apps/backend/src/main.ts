@@ -2,21 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { migrations } from '@marcx/db';
 
 async function runMigrations() {
   try {
-    console.log('Running database migrations...');
-    const { stdout, stderr } = await execAsync('pnpm drizzle-kit migrate', {
-      cwd: process.cwd() + '/../../packages/drizzle',
-    });
-
-    if (stdout) console.log(stdout);
-    if (stderr) console.error(stderr);
-
+    await migrations();
     console.log('Database migrations completed successfully');
   } catch (error) {
     console.error('Error running migrations:', error);

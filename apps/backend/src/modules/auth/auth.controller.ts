@@ -41,7 +41,6 @@ interface RequestWithUser extends Request {
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly userService: UserService,
   ) {}
 
   @Post('register')
@@ -165,12 +164,5 @@ export class AuthController {
     res.clearCookie('refreshToken');
 
     return { message: 'All tokens revoked successfully' };
-  }
-
-  @Get('me')
-  @UseGuards(AuthGuard)
-  async getCurrentUser(@Request() req: RequestWithUser) {
-    const user = await this.userService.findOne(req.user.id);
-    return { user };
   }
 }

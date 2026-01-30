@@ -24,6 +24,13 @@ interface RequestWithUser extends Request {
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  @Get('me')
+  async getCurrentUser(@Request() req: RequestWithUser) {
+    const user = await this.userService.findOne(req.user.id);
+    console.log(user);
+    return { user };
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.userService.findOne(id);
@@ -39,7 +46,7 @@ export class UserController {
     if (id !== req.user.id && req.user.role !== 'ADMIN') {
       throw new Error('Unauthorized');
     }
-    
+
     return this.userService.update(id, updateUserDto);
   }
 }

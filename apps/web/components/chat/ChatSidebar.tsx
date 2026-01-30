@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/AuthContext"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import type { ChatSession } from "@marcx/db"
+import type { ChatSession } from "@marcx/db/schema"
 import {
   AlertDialog,
   AlertDialogAction,

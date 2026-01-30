@@ -30,6 +30,7 @@
 
 export { Backend, ApiClientError } from './base';
 export { AuthClient } from './auth';
+export { UserClient } from './user';
 export { CaseClient } from './case';
 export { ChatClient } from './chat';
 export { CompanyClient } from './company';
@@ -38,6 +39,7 @@ export * from './types';
 
 import { BackendConfig } from './types';
 import { AuthClient } from './auth';
+import { UserClient } from './user';
 import { CaseClient } from './case';
 import { ChatClient } from './chat';
 import { CompanyClient } from './company';
@@ -49,6 +51,7 @@ import { SessionClient } from './session';
  */
 export class BackendClient {
   public auth: AuthClient;
+  public user: UserClient;
   public case: CaseClient;
   public chat: ChatClient;
   public company: CompanyClient;
@@ -57,6 +60,7 @@ export class BackendClient {
   constructor(config: BackendConfig = {}) {
     // All clients share the same configuration
     this.auth = new AuthClient(config);
+    this.user = new UserClient(config);
     this.case = new CaseClient(config);
     this.chat = new ChatClient(config);
     this.company = new CompanyClient(config);

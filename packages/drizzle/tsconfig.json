@@ -4,6 +4,10 @@
     "outDir": "dist",
     "rootDir": "src",
 
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "Node",

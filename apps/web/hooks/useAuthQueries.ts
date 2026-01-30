@@ -18,6 +18,17 @@ export const authKeys = {
 }
 
 /**
+ * Check if a cookie exists
+ */
+function hasCookie(name: string): boolean {
+  if (typeof document === 'undefined') {
+    return false; // Server-side, can't check cookies
+  }
+  const cookies = document.cookie.split(';');
+  return cookies.some(cookie => cookie.trim().startsWith(`${name}=`));
+}
+
+/**
  * Hook to get the current authenticated user
  */
 export function useCurrentUser() {
@@ -25,15 +36,15 @@ export function useCurrentUser() {
     queryKey: authKeys.currentUser(),
     queryFn: async () => {
       try {
-        return await backend.auth.getCurrentUser()
+        return await backend.user.getCurrentUser();
       } catch (error) {
         // If not authenticated, return null instead of throwing
-        return null
+        return null;
       }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
-  })
+  });
 }
 
 /**
