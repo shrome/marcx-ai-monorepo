@@ -1,7 +1,7 @@
 "use client"
 
-import { FilesContainer } from "@/components/files/FilesContainer"
+import { Case } from "@/components/cases/Case"
 
 export default function FilesPage() {
-  return <FilesContainer />
+  return <Case />
 }

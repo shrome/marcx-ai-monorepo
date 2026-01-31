@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
 import { FileCategorySections } from "./FileCategorySections"
+import { useCase } from "@/hooks/useBackendQueries"
 
 interface CaseFile {
   id: string
@@ -17,49 +17,37 @@ interface CaseDetailProps {
 }
 
 export function CaseDetail({ sessionId }: CaseDetailProps) {
-  // Mock data - replace with actual API call
-  const [caseData] = useState({
-    id: sessionId,
-    title: "Sample Case",
-    description: "This is a sample case description",
-    status: "open",
-    priority: "medium",
-    clientName: "John Doe",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
+  const { data: caseData, isLoading } = useCase(sessionId)
 
-  const [files, setFiles] = useState<CaseFile[]>([
-    {
-      id: "1",
-      name: "contract.pdf",
-      url: "#",
-      size: "245KB",
-      type: "application/pdf",
-      category: "PENDING",
-    },
-    {
-      id: "2",
-      name: "invoice-001.pdf",
-      url: "#",
-      size: "120KB",
-      type: "application/pdf",
-      category: "INVOICE",
-    },
-    {
-      id: "3",
-      name: "receipt-001.jpg",
-      url: "#",
-      size: "89KB",
-      type: "image/jpeg",
-      category: "RECEIPTS",
-    },
-  ])
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="text-center text-muted-foreground">Loading case details...</div>
+      </div>
+    )
+  }
+
+  if (!caseData) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="text-center text-muted-foreground">Case not found</div>
+      </div>
+    )
+  }
+
+  // Map files to the expected format with default category
+  const files: CaseFile[] = (caseData.files || []).map((file: any) => ({
+    id: file.id,
+    name: file.name,
+    url: file.url,
+    size: file.size?.toString() || "0",
+    type: file.type,
+    category: "PENDING" as const, // Default category, can be extended
+  }))
 
   const handleCategoryChange = (fileId: string, newCategory: "PENDING" | "INVOICE" | "RECEIPTS") => {
-    setFiles((prev) =>
-      prev.map((file) => (file.id === fileId ? { ...file, category: newCategory } : file))
-    )
+    // TODO: Implement API call to update file category
+    console.log(`Update file ${fileId} to category ${newCategory}`)
   }
 
   return (
@@ -84,15 +72,15 @@ export function CaseDetail({ sessionId }: CaseDetailProps) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-lg border bg-card">
           <div>
             <p className="text-xs text-muted-foreground mb-1">Client Name</p>
-            <p className="font-medium">{caseData.clientName}</p>
+            <p className="font-medium">{caseData.caseInfo?.clientName || 'N/A'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1">Created</p>
-            <p className="font-medium">{caseData.createdAt.toLocaleDateString()}</p>
+            <p className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1">Last Updated</p>
-            <p className="font-medium">{caseData.updatedAt.toLocaleDateString()}</p>
+            <p className="font-medium">{new Date(caseData.updatedAt).toLocaleDateString()}</p>
           </div>
         </div>
       </div>

@@ -82,15 +82,37 @@ export interface UpdateCaseDto {
 
 export interface Case {
   id: string;
+  type: 'CASE';
   title: string;
-  description?: string;
-  clientName: string;
+  description?: string | null;
   status: 'open' | 'in_progress' | 'closed';
   priority: 'low' | 'medium' | 'high';
-  companyId: string;
-  userId: string;
+  companyId?: string | null;
+  creatorId: string;
   createdAt: string;
   updatedAt: string;
+  caseInfo?: {
+    id: string;
+    sessionId: string;
+    clientName: string;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  creator?: {
+    id: string;
+    email: string;
+    name?: string | null;
+  };
+  files?: Array<{
+    id: string;
+    name: string;
+    url: string;
+    size: number;
+    type: string;
+    sessionId: string;
+    chatId?: string | null;
+    createdAt: string;
+  }>;
 }
 
 // Chat Types

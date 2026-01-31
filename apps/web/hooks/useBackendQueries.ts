@@ -60,8 +60,8 @@ export function useCreateCase() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: CreateCaseDto) => {
-      return await backend.case.create(data)
+    mutationFn: async ({ data, files }: { data: CreateCaseDto; files?: File[] }) => {
+      return await backend.case.create(data, files)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: caseKeys.lists() })

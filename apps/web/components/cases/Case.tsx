@@ -2,81 +2,80 @@
 
 import { useState } from "react"
 import { useAuth } from "@/components/AuthContext"
-import { FileUploadZone } from "./FileUploadZone"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { HardDrive, MessageSquare, LogOut, Plus, Paperclip, X } from "lucide-react"
+import { HardDrive, MessageSquare, LogOut, Plus, Paperclip, X, FileIcon } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useCases, useCreateCase } from "@/hooks/useBackendQueries"
+import { Textarea } from "@/components/ui/textarea"
 
-interface CaseRow {
-  id: string
-  title: string
-  description: string | null
-  status: string
-  priority: string
-  updatedAt: Date
-}
-
-interface Attachment {
-  id: string
-  name: string
-  url: string
-  size: string
-  type: string
-}
-
-export function FilesContainer() {
+export function Case() {
   const { user, logout } = useAuth()
   const router = useRouter()
-  const [cases, setCases] = useState<CaseRow[]>([])
-  const [files, setFiles] = useState<Attachment[]>([])
+  const { data: cases, isLoading } = useCases()
+  const createCaseMutation = useCreateCase()
+  
+  const [files, setFiles] = useState<File[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [clientName, setClientName] = useState("")
+  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
 
   const handleLogout = async () => {
     await logout()
     router.push("/login")
   }
 
-  const handleUploadComplete = async (fileData: {
-    name: string
-    url: string
-    size: string
-    type: string
-  }) => {
-    setFiles((prev) => [
-      {
-        id: crypto.randomUUID(),
-        ...fileData,
-      },
-      ...prev,
-    ])
-    toast.success("File uploaded")
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || [])
+    setFiles((prev) => [...prev, ...selectedFiles])
   }
 
-  const handleCreateCase = () => {
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleCreateCase = async () => {
     if (!title.trim()) {
       toast.error("Title is required")
       return
     }
 
-    const newCase: CaseRow = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      description: description.trim() || null,
-      status: "open",
-      priority: "medium",
-      updatedAt: new Date(),
+    if (!clientName.trim()) {
+      toast.error("Client name is required")
+      return
     }
 
-    setCases((prev) => [newCase, ...prev])
-    setTitle("")
-    setDescription("")
-    setIsCreateOpen(false)
-    toast.success("Case created")
+    if (!user?.companyId) {
+      toast.error("Company ID is required")
+      return
+    }
+
+    try {
+      await createCaseMutation.mutateAsync({
+        data: {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          clientName: clientName.trim(),
+          priority,
+          companyId: user.companyId,
+        },
+        files: files.length > 0 ? files : undefined,
+      })
+
+      toast.success("Case created successfully")
+      setTitle("")
+      setDescription("")
+      setClientName("")
+      setPriority("medium")
+      setFiles([])
+      setIsCreateOpen(false)
+    } catch (error) {
+      toast.error("Failed to create case")
+    }
   }
 
   return (
@@ -145,7 +144,11 @@ export function FilesContainer() {
                 <span className="col-span-3">Priority</span>
                 <span className="col-span-2 text-right">Updated</span>
               </div>
-              {cases.length === 0 ? (
+              {isLoading ? (
+                <div className="p-6 text-center text-muted-foreground">
+                  Loading cases...
+                </div>
+              ) : !cases || cases.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground">
                   No cases yet. Create your first case.
                 </div>
@@ -176,7 +179,7 @@ export function FilesContainer() {
                         {item.priority}
                       </div>
                       <div className="col-span-2 text-right text-sm text-muted-foreground">
-                        {item.updatedAt.toLocaleDateString()}
+                        {new Date(item.updatedAt).toLocaleDateString()}
                       </div>
                     </button>
                   ))}
@@ -200,7 +203,7 @@ export function FilesContainer() {
           onClick={() => setIsCreateOpen(false)}
         />
         <aside
-          className={`absolute inset-y-0 right-0 flex flex-col w-full sm:w-[420px] h-full bg-card border-l shadow-xl transition-transform duration-200 ease-out ${
+          className={`absolute inset-y-0 right-0 flex flex-col w-full sm:w-105 h-full bg-card border-l shadow-xl transition-transform duration-200 ease-out ${
             isCreateOpen ? "translate-x-0" : "translate-x-full"
           }`}
           role="dialog"
@@ -223,7 +226,7 @@ export function FilesContainer() {
 
           <div className="p-4 space-y-5 flex-1 overflow-y-auto">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Title</label>
+              <label className="text-sm font-medium">Title *</label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -232,35 +235,80 @@ export function FilesContainer() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">Client Name *</label>
               <Input
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Client name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short description"
+                placeholder="Case description"
+                rows={3}
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as "low" | "medium" | "high")}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Paperclip className="h-4 w-4" /> Attachments
               </div>
-              <FileUploadZone onUploadComplete={handleUploadComplete} />
+              <div className="border-2 border-dashed rounded-lg p-4">
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="flex flex-col items-center justify-center cursor-pointer"
+                >
+                  <Paperclip className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Click to select files</p>
+                </label>
+              </div>
               {files.length > 0 && (
                 <div className="border rounded-md divide-y text-sm">
-                  {files.map((f) => (
+                  {files.map((f, index) => (
                     <div
-                      key={f.id}
+                      key={index}
                       className="flex items-center justify-between px-3 py-2"
                     >
-                      <div className="flex flex-col">
-                        <span className="font-medium">{f.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {f.type}
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <FileIcon className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{f.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {(f.size / 1024).toFixed(1)} KB
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {f.size}
-                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveFile(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -268,10 +316,12 @@ export function FilesContainer() {
             </div>
           </div>
           <div className="flex items-center justify-end gap-2 border-t px-4 py-3 bg-card/90">
-            {/* <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                Cancel
-              </Button> */}
-            <Button onClick={handleCreateCase}>Create</Button>
+            <Button 
+              onClick={handleCreateCase} 
+              disabled={createCaseMutation.isPending}
+            >
+              {createCaseMutation.isPending ? "Creating..." : "Create"}
+            </Button>
           </div>
         </aside>
       </div>

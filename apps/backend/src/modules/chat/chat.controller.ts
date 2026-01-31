@@ -38,11 +38,7 @@ export class ChatController {
     @Request() req: RequestWithUser,
   ) {
     createMessageDto.sessionId = sessionId;
-    return this.chatService.createMessage(
-      createMessageDto,
-      files,
-      req.user.id,
-    );
+    return this.chatService.createMessage(createMessageDto, files, req.user.id);
   }
 
   @Get('sessions/:sessionId/messages')
