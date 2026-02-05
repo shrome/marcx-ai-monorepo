@@ -117,8 +117,6 @@ export interface Case {
 
 // Chat Types
 export interface CreateMessageDto {
-  sessionId: string;
-  role: 'USER' | 'ASSISTANT';
   content: string;
 }
 
@@ -129,7 +127,23 @@ export interface Message {
   content: string;
   userId: string;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+  user?: {
+    id: string;
+    email: string;
+    name?: string | null;
+    image?: string | null;
+  };
+  files?: Array<{
+    id: string;
+    name: string;
+    url: string;
+    size: string;
+    type: string;
+    sessionId: string;
+    chatId?: string | null;
+    createdAt: string;
+  }>;
 }
 
 // Company Types

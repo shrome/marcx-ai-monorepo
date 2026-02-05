@@ -3,6 +3,13 @@ import { CreateSessionDto, UpdateSessionDto, Session } from './types';
 
 export class SessionClient extends Backend {
   /**
+   * Create a new chat session with the user's company
+   */
+  async createChatSession(data?: { title?: string }): Promise<Session> {
+    return this.post<Session>('/sessions/chat', data || {});
+  }
+
+  /**
    * Create a new session
    */
   async create(data: CreateSessionDto): Promise<Session> {

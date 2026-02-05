@@ -12,12 +12,14 @@ import { db, eq, and } from '@marcx/db';
 import { user, credential, verificationToken } from '@marcx/db/schema';
 import type { JwtPayload } from './strategies/jwt.strategy';
 import { CACHE_MANAGER, type Cache } from '@nestjs/cache-manager';
+import { EmailService } from '../../services/email.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private jwtService: JwtService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private emailService: EmailService,
   ) {}
 
   private async generateTokenPair(userId: string, email: string, role: string) {
@@ -31,24 +33,36 @@ export class AuthService {
     const refreshTokenValue = crypto.randomBytes(64).toString('hex');
     const tokenHash = await bcrypt.hash(refreshTokenValue, 10);
 
-    const tokenData = { userId, email, role, tokenHash };
+    const tokenData = {
+      userId,
+      email,
+      role,
+      tokenHash,
+      createdAt: Date.now(),
+    };
     const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-    // Store with two keys for easy lookup:
-    // 1. By userId (for revoke all)
-    const userKey = `refresh_token:${userId}:${refreshTokenValue}`;
-    await this.cacheManager.set(userKey, tokenData, ttl);
-
-    // 2. By token value (for refresh)
+    // Store with lookup key (primary key for refresh operations)
     const lookupKey = `refresh_token_lookup:${refreshTokenValue}`;
-    await this.cacheManager.set(lookupKey, tokenData, ttl);
+    await this.cacheManager.set(lookupKey, JSON.stringify(tokenData), ttl);
 
-    // 3. Maintain list of user's tokens for bulk revocation
+    // Store user key for easy access
+    const userKey = `refresh_token:${userId}:${refreshTokenValue}`;
+    await this.cacheManager.set(userKey, JSON.stringify(tokenData), ttl);
+
+    // Maintain list of user's tokens for bulk revocation
     const userTokenListKey = `user_tokens:${userId}`;
-    const existingTokens =
-      (await this.cacheManager.get<string[]>(userTokenListKey)) || [];
+    const existingTokensJson =
+      await this.cacheManager.get<string>(userTokenListKey);
+    const existingTokens: string[] = existingTokensJson
+      ? (JSON.parse(existingTokensJson) as string[])
+      : [];
     existingTokens.push(refreshTokenValue);
-    await this.cacheManager.set(userTokenListKey, existingTokens, ttl);
+    await this.cacheManager.set(
+      userTokenListKey,
+      JSON.stringify(existingTokens),
+      ttl,
+    );
 
     return {
       accessToken,
@@ -107,8 +121,13 @@ export class AuthService {
       attempts: 0,
     });
 
-    // TODO: Send email with OTP code
-    console.log(`Registration OTP for ${email}: ${code}`);
+    // Send email with OTP code
+    await this.emailService.sendOtpEmail({
+      to: email,
+      name: name,
+      code: code,
+      purpose: 'registration',
+    });
 
     return {
       user: {
@@ -118,7 +137,8 @@ export class AuthService {
         role: newUser.role,
         emailVerified: false,
       },
-      message: 'Registration successful. Please verify your email with the OTP sent.',
+      message:
+        'Registration successful. Please verify your email with the OTP sent.',
     };
   }
 
@@ -160,8 +180,13 @@ export class AuthService {
       attempts: 0,
     });
 
-    // TODO: Send email with OTP code
-    console.log(`Login OTP for ${email}: ${code}`);
+    // Send email with OTP code
+    await this.emailService.sendOtpEmail({
+      to: email,
+      name: userCredential.user.name || 'User',
+      code: code,
+      purpose: 'login',
+    });
 
     return {
       message: 'OTP sent to your email. Please verify to complete login.',
@@ -198,8 +223,17 @@ export class AuthService {
       attempts: 0,
     });
 
-    // TODO: Send email with OTP code
-    console.log(`OTP for ${email}: ${code}`);
+    // Send email with OTP code
+    const userInfo = await db.query.user.findFirst({
+      where: eq(user.id, userCredential.userId),
+    });
+
+    await this.emailService.sendOtpEmail({
+      to: email,
+      name: userInfo?.name || '',
+      code: code,
+      purpose: 'verification',
+    });
 
     return { message: 'OTP sent successfully' };
   }
@@ -381,25 +415,27 @@ export class AuthService {
   }
 
   async refreshAccessToken(refreshTokenValue: string) {
-    // Try to get token directly by constructing potential keys
-    // Since we don't know the exact userId, we need to try a workaround
-    // In production with Redis, we'd use SCAN or KEYS command
-
-    // For now, we'll use a simpler approach: store tokens with a reverse lookup
-    // Get token data directly if it exists
+    // Get token data from cache
     const reverseKey = `refresh_token_lookup:${refreshTokenValue}`;
-    const lookupData = await this.cacheManager.get<{
+    const lookupDataJson = await this.cacheManager.get<string>(reverseKey);
+
+    console.log('Refresh token lookup:', {
+      key: reverseKey,
+      found: !!lookupDataJson,
+      token: refreshTokenValue.substring(0, 10) + '...',
+    });
+
+    if (!lookupDataJson) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const lookupData = JSON.parse(lookupDataJson) as {
       userId: string;
       email: string;
       role: string;
       tokenHash: string;
-    }>(reverseKey);
-
-
-    console.log('lookupData', lookupData, refreshTokenValue);
-    if (!lookupData) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
+      createdAt: number;
+    };
 
     // Verify token hash
     const isValid = await bcrypt.compare(
@@ -442,9 +478,9 @@ export class AuthService {
     const userKey = `refresh_token:${userId}:${refreshTokenValue}`;
     const lookupKey = `refresh_token_lookup:${refreshTokenValue}`;
 
-    const tokenData = await this.cacheManager.get(lookupKey);
+    const tokenDataJson = await this.cacheManager.get<string>(lookupKey);
 
-    if (!tokenData) {
+    if (!tokenDataJson) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
@@ -455,8 +491,10 @@ export class AuthService {
 
     // Remove from user's token list
     const userTokenListKey = `user_tokens:${userId}`;
-    const tokenList =
-      (await this.cacheManager.get<string[]>(userTokenListKey)) || [];
+    const tokenListJson = await this.cacheManager.get<string>(userTokenListKey);
+    const tokenList: string[] = tokenListJson
+      ? (JSON.parse(tokenListJson) as string[])
+      : [];
     const updatedList = tokenList.filter(
       (token) => token !== refreshTokenValue,
     );
@@ -464,7 +502,7 @@ export class AuthService {
     if (updatedList.length > 0) {
       await this.cacheManager.set(
         userTokenListKey,
-        updatedList,
+        JSON.stringify(updatedList),
         7 * 24 * 60 * 60 * 1000,
       );
     } else {
@@ -477,8 +515,10 @@ export class AuthService {
   async revokeAllRefreshTokens(userId: string) {
     // Get list of all user's refresh tokens
     const userTokenListKey = `user_tokens:${userId}`;
-    const tokenList =
-      (await this.cacheManager.get<string[]>(userTokenListKey)) || [];
+    const tokenListJson = await this.cacheManager.get<string>(userTokenListKey);
+    const tokenList: string[] = tokenListJson
+      ? (JSON.parse(tokenListJson) as string[])
+      : [];
 
     if (tokenList.length > 0) {
       // Delete all tokens

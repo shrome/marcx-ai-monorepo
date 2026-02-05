@@ -37,8 +37,12 @@ export class ChatController {
     @UploadedFiles() files: Express.Multer.File[],
     @Request() req: RequestWithUser,
   ) {
-    createMessageDto.sessionId = sessionId;
-    return this.chatService.createMessage(createMessageDto, files, req.user.id);
+    return this.chatService.createMessage(
+      sessionId,
+      createMessageDto,
+      files,
+      req.user.id,
+    );
   }
 
   @Get('sessions/:sessionId/messages')

@@ -35,7 +35,10 @@ export class CaseService {
 
     // Upload and save file attachments if provided
     if (files && files.length > 0) {
-      const uploadedFiles = await this.fileStorageService.uploadFiles(files);
+      const uploadedFiles = await this.fileStorageService.uploadFiles(
+        files,
+        `session/${newSession.id}/raw`,
+      );
 
       await db.insert(file).values(
         uploadedFiles.map((uploadedFile) => ({
@@ -145,7 +148,10 @@ export class CaseService {
     }
 
     // Upload files to storage
-    const uploadedFiles = await this.fileStorageService.uploadFiles(files);
+    const uploadedFiles = await this.fileStorageService.uploadFiles(
+      files,
+      `session/${sessionId}/raw`,
+    );
 
     // Save file records to database
     const newFiles = await db

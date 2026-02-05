@@ -137,7 +137,7 @@ export function useCreateMessage() {
       files,
     }: {
       sessionId: string
-      data: Omit<CreateMessageDto, "sessionId">
+      data: CreateMessageDto
       files?: File[]
     }) => {
       return await backend.chat.createMessage(sessionId, data, files)
@@ -181,6 +181,22 @@ export function useSession(id: string) {
       return await backend.session.findOne(id)
     },
     enabled: !!id,
+  })
+}
+
+/**
+ * Hook to create a new chat session (uses user's company automatically)
+ */
+export function useCreateChatSession() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data?: { title?: string }) => {
+      return await backend.session.createChatSession(data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() })
+    },
   })
 }
 

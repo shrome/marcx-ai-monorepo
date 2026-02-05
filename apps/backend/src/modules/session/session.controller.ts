@@ -11,7 +11,11 @@ import {
   Request,
 } from '@nestjs/common';
 import { SessionService } from './session.service';
-import { CreateSessionDto, UpdateSessionDto } from './dto/session.dto';
+import {
+  CreateSessionDto,
+  UpdateSessionDto,
+  CreateChatSessionDto,
+} from './dto/session.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 
 interface RequestWithUser extends Request {
@@ -26,6 +30,17 @@ interface RequestWithUser extends Request {
 @UseGuards(AuthGuard)
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
+
+  @Post('chat')
+  createChatSession(
+    @Body() createChatSessionDto: CreateChatSessionDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.sessionService.createChatSession(
+      createChatSessionDto,
+      req.user.id,
+    );
+  }
 
   @Post()
   create(

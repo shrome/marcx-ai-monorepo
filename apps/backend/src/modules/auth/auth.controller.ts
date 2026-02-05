@@ -119,6 +119,7 @@ export class AuthController {
       throw new Error('No refresh token found');
     }
 
+    console.log('Refresh token received:', refreshToken);
     const result = await this.authService.refreshAccessToken(refreshToken);
 
     // Set new access token cookie
@@ -129,6 +130,7 @@ export class AuthController {
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
+    console.log('New access token set in cookie');
     return { message: 'Token refreshed successfully' };
   }
 

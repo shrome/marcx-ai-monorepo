@@ -7,13 +7,12 @@ export class ChatClient extends Backend {
    */
   async createMessage(
     sessionId: string,
-    data: Omit<CreateMessageDto, 'sessionId'>,
+    data: CreateMessageDto,
     files?: File[],
   ): Promise<Message> {
     const formData = new FormData();
     
     // Append message data
-    formData.append('role', data.role);
     formData.append('content', data.content);
     
     // Append files if provided

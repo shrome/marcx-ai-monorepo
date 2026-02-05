@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 
 export interface UploadedFileInfo {
   name: string;
@@ -9,89 +14,119 @@ export interface UploadedFileInfo {
 
 @Injectable()
 export class FileStorageService {
-  private memoryStore = new Map<string, Buffer>();
+  private readonly logger = new Logger(FileStorageService.name);
+  private readonly s3Client: S3Client;
+  private readonly bucketName: string;
+  private readonly region: string = 'ap-southeast-2'; // AWS region from the bucket name
 
-  /**
-   * Upload files to storage
-   * Currently stores in memory, but structured to easily switch to S3
-   */
-  async uploadFiles(files: Express.Multer.File[]): Promise<UploadedFileInfo[]> {
-    return Promise.all(files.map((file) => this.uploadFile(file)));
+  constructor() {
+    // Initialize S3 client with credentials from environment
+    this.bucketName = process.env.AWS_ASSETS_BUCKET_NAME || '';
+    
+    if (!this.bucketName) {
+      this.logger.warn(
+        'AWS_ASSETS_BUCKET_NAME not set in environment variables',
+      );
+    }
+
+    this.s3Client = new S3Client({
+      region: this.region,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+      },
+    });
+
+    this.logger.log(
+      `S3 FileStorageService initialized with bucket: ${this.bucketName}`,
+    );
   }
 
   /**
-   * Upload a single file to storage
+   * Upload files to S3 storage
    */
-  async uploadFile(file: Express.Multer.File): Promise<UploadedFileInfo> {
+  async uploadFiles(
+    files: Express.Multer.File[],
+    pathPrefix = 'uploads',
+  ): Promise<UploadedFileInfo[]> {
+    return Promise.all(files.map((file) => this.uploadFile(file, pathPrefix)));
+  }
+
+  /**
+   * Upload a single file to S3 storage
+   */
+  async uploadFile(
+    file: Express.Multer.File,
+    pathPrefix = 'uploads',
+  ): Promise<UploadedFileInfo> {
     // Generate unique filename
     const timestamp = Date.now();
     const randomSuffix = Math.round(Math.random() * 1e9);
     const uniqueFilename = `${timestamp}-${randomSuffix}-${file.originalname}`;
+    const key = `${pathPrefix}/${uniqueFilename}`;
 
-    // Store in memory for now
-    this.memoryStore.set(uniqueFilename, file.buffer);
+    try {
+      // Upload to S3
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        }),
+      );
 
-    // delay 2 seconds to simulate async upload
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      const url = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
 
-    // Return file info
-    return {
-      name: file.originalname,
-      url: `/api/files/${uniqueFilename}`, // This would be S3 URL in production
-      size: file.size.toString(),
-      type: file.mimetype,
-    };
+      this.logger.log(`File uploaded successfully: ${uniqueFilename}`);
 
-    // TODO: For S3 implementation, replace above with:
-    // const uploadResult = await this.s3Client.send(
-    //   new PutObjectCommand({
-    //     Bucket: process.env.AWS_S3_BUCKET,
-    //     Key: `uploads/${uniqueFilename}`,
-    //     Body: file.buffer,
-    //     ContentType: file.mimetype,
-    //   })
-    // );
-    //
-    // return {
-    //   name: file.originalname,
-    //   url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/uploads/${uniqueFilename}`,
-    //   size: file.size.toString(),
-    //   type: file.mimetype,
-    // };
+      // Return file info
+      return {
+        name: file.originalname,
+        url,
+        size: file.size.toString(),
+        type: file.mimetype,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to upload file ${file.originalname}:`, error);
+      throw error;
+    }
   }
 
   /**
-   * Get file from memory storage
-   * Used for serving files before S3 implementation
+   * Delete file from S3 storage
+   * @param fileUrl - Full S3 URL or just the key path
    */
-  getFile(filename: string): Buffer | undefined {
-    return this.memoryStore.get(filename);
+  async deleteFile(fileUrl: string): Promise<void> {
+    // Extract key from URL if full URL is provided
+    let key: string;
+    if (fileUrl.startsWith('https://')) {
+      const url = new URL(fileUrl);
+      key = url.pathname.substring(1); // Remove leading '/'
+    } else {
+      key = fileUrl;
+    }
+
+    try {
+      await this.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        }),
+      );
+
+      this.logger.log(`File deleted successfully: ${key}`);
+    } catch (error) {
+      this.logger.error(`Failed to delete file ${key}:`, error);
+      throw error;
+    }
   }
 
   /**
-   * Delete file from storage
+   * Get file URL from S3
+   * @param key - S3 key path (e.g., 'session/123/raw/filename.jpg')
    */
-  async deleteFile(filename: string): Promise<void> {
-    this.memoryStore.delete(filename);
-    // delay 1 second to simulate async delete
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // TODO: For S3 implementation:
-    // await this.s3Client.send(
-    //   new DeleteObjectCommand({
-    //     Bucket: process.env.AWS_S3_BUCKET,
-    //     Key: `uploads/${filename}`,
-    //   })
-    // );
-  }
-
-  /**
-   * Get file URL
-   */
-  getFileUrl(filename: string): string {
-    return `/api/files/${filename}`;
-
-    // TODO: For S3 implementation:
-    // return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/uploads/${filename}`;
+  getFileUrl(key: string): string {
+    return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
   }
 }

@@ -84,7 +84,7 @@ export const verificationToken = pgTable("VerificationToken", {
 });
 
 // Chat sessions
-export const session = pgTable("ChatSession", {
+export const session = pgTable("Session", {
   id: uuid("id").primaryKey().defaultRandom(),
   type: sessionTypeEnum("type").notNull().default("CHAT"),
   companyId: uuid("companyId")

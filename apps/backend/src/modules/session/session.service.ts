@@ -2,10 +2,45 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSessionDto, UpdateSessionDto } from './dto/session.dto';
 
 import { db, eq, and } from '@marcx/db';
-import { session } from '@marcx/db/schema';
+import { session, user } from '@marcx/db/schema';
 
 @Injectable()
 export class SessionService {
+  async createChatSession(data: { title?: string } = {}, userId: string) {
+    // Get user with company information
+    const foundUser = await db.query.user.findFirst({
+      where: eq(user.id, userId),
+      with: {
+        company: true,
+      },
+    });
+
+    if (!foundUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!foundUser.companyId) {
+      throw new NotFoundException('User does not have an associated company');
+    }
+
+    // Create chat session
+    const sessionTitle = data.title?.trim() || 'New Chat';
+
+    const [newSession] = await db
+      .insert(session)
+      .values({
+        type: 'CHAT',
+        companyId: foundUser.companyId,
+        creatorId: userId,
+        title: sessionTitle,
+        status: 'open',
+        priority: 'medium',
+      })
+      .returning();
+
+    return newSession;
+  }
+
   async create(createSessionDto: CreateSessionDto, userId: string) {
     const [newSession] = await db
       .insert(session)

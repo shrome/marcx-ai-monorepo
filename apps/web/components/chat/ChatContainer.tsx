@@ -1,14 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useChat } from "@ai-sdk/react"
+import { MessageSquare } from "lucide-react"
 import { ChatSidebar } from "./ChatSidebar"
 import { ChatMessages } from "./ChatMessages"
 import { ChatInput } from "./ChatInput"
 import { useAuth } from "@/components/AuthContext"
-import { trpc } from "@/trpc/client"
 import { toast } from "sonner"
-import type { ChatSession } from "@marcx/db"
+import {
+  useSessions,
+  useCreateChatSession,
+  useDeleteSession,
+  useUpdateSession,
+  useMessages,
+  useCreateMessage,
+} from "@/hooks/useBackendQueries"
+import type { Session, Message } from "@/lib/backend/types"
 
 interface Attachment {
   name: string
@@ -18,35 +25,32 @@ interface Attachment {
 
 export function ChatContainer() {
   const { user } = useAuth()
-  const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
-  const createSession = trpc.chat.createSession.useMutation()
-  const deleteSession = trpc.chat.deleteSession.useMutation()
-  const updateTitle = trpc.chat.updateSessionTitle.useMutation()
+  // Fetch sessions
+  const { data: sessions = [], isLoading: sessionsLoading } = useSessions()
+  const chatSessions = sessions.filter((s) => s.type === "CHAT")
 
-  const { messages, status, setMessages } = useChat({
-    api: "/api/chat",
-    onError: (error) => {
-      toast.error("Failed to get response from AI");
-    },
-  });
+  // Fetch messages for current session
+  const { data: messages = [], isLoading: messagesLoading } = useMessages(currentSessionId || "")
 
-  const isLoading = status === "streaming";
+  // Mutations
+  const createChatSession = useCreateChatSession()
+  const deleteSession = useDeleteSession()
+  const updateSession = useUpdateSession()
+  const createMessage = useCreateMessage()
 
-  // Create initial session on mount
+  // Create initial session on mount if none exist
   useEffect(() => {
-    if (user && sessions.length === 0) {
-      handleNewSession()
+    if (user && chatSessions.length > 0 && !currentSessionId) {
+      setCurrentSessionId(chatSessions[0].id)
     }
-  }, [user])
+  }, [user, chatSessions.length, currentSessionId])
 
-  const handleNewSession = async () => {
+  const handleNewSession = async (title?: string) => {
     try {
-      const session = await createSession.mutateAsync({})
-      setSessions((prev) => [session, ...prev])
+      const session = await createChatSession.mutateAsync(title ? { title } : undefined)
       setCurrentSessionId(session.id)
-      setMessages([])
     } catch (error) {
       toast.error("Failed to create new chat")
     }
@@ -54,22 +58,20 @@ export function ChatContainer() {
 
   const handleSelectSession = (id: string) => {
     setCurrentSessionId(id)
-    // In a real app, you'd fetch messages for this session
-    setMessages([])
   }
 
   const handleDeleteSession = async (id: string) => {
     try {
-      await deleteSession.mutateAsync({ sessionId: id })
-      setSessions((prev) => prev.filter((s) => s.id !== id))
+      await deleteSession.mutateAsync(id)
       if (currentSessionId === id) {
-        const remaining = sessions.filter((s) => s.id !== id)
+        const remaining = chatSessions.filter((s) => s.id !== id)
         if (remaining.length > 0) {
           setCurrentSessionId(remaining[0].id)
         } else {
-          handleNewSession()
+          await handleNewSession()
         }
       }
+      toast.success("Conversation deleted")
     } catch (error) {
       toast.error("Failed to delete conversation")
     }
@@ -77,39 +79,49 @@ export function ChatContainer() {
 
   const handleRenameSession = async (id: string, title: string) => {
     try {
-      await updateTitle.mutateAsync({ sessionId: id, title })
-      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
+      await updateSession.mutateAsync({ id, data: { title } })
+      toast.success("Conversation renamed")
     } catch (error) {
       toast.error("Failed to rename conversation")
     }
   }
 
   const handleSend = async (content: string, attachments: Attachment[]) => {
-    // Update session title if it's the first message
-    if (messages.length === 0 && currentSessionId) {
-      const title = content.slice(0, 50) + (content.length > 50 ? "..." : "")
-      setSessions((prev) => prev.map((s) => (s.id === currentSessionId ? { ...s, title } : s)))
+    if (!currentSessionId) {
+      toast.error("No active session")
+      return
     }
 
-    toast.success("Message sent (mock)")
-    // await sendMessage({
-    //   role: "user",
-    //   content,
-    //   experimental_attachments:
-    //     attachments.length > 0
-    //       ? attachments.map((a) => ({
-    //           name: a.name,
-    //           url: a.url,
-    //           contentType: a.type,
-    //         }))
-    //       : undefined,
-    // })
+    try {
+      // Convert attachments to File objects if needed
+      const files = attachments.length > 0 ? await Promise.all(
+        attachments.map(async (a) => {
+          const response = await fetch(a.url)
+          const blob = await response.blob()
+          return new File([blob], a.name, { type: a.type })
+        })
+      ) : undefined
+
+      // Send message to backend
+      await createMessage.mutateAsync({
+        sessionId: currentSessionId,
+        data: {
+          content,
+        },
+        files,
+      })
+
+      toast.success("Message sent")
+    } catch (error) {
+      console.error("Failed to send message:", error)
+      toast.error("Failed to send message")
+    }
   }
 
   return (
     <div className="flex h-screen bg-background">
       <ChatSidebar
-        sessions={sessions}
+        sessions={chatSessions}
         currentSessionId={currentSessionId}
         onSelectSession={handleSelectSession}
         onNewSession={handleNewSession}
@@ -117,8 +129,24 @@ export function ChatContainer() {
         onRenameSession={handleRenameSession}
       />
       <main className="flex-1 flex flex-col min-w-0">
-        <ChatMessages messages={messages} isLoading={isLoading} />
-        <ChatInput onSend={handleSend} isLoading={isLoading} />
+        {currentSessionId ? (
+          <>
+            <ChatMessages messages={messages} isLoading={createMessage.isPending || messagesLoading} />
+            <ChatInput onSend={handleSend} isLoading={createMessage.isPending} />
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center max-w-md">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-semibold mb-2">No chat selected</h2>
+              <p className="text-muted-foreground mb-4">
+                Create a new chat to get started or select an existing one from the sidebar.
+              </p>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

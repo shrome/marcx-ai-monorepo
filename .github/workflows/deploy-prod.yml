@@ -1,0 +1,87 @@
+name: Build & Deploy (Prod)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BACKEND: ${{ github.repository }}-backend
+  IMAGE_WEB: ${{ github.repository }}-web
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ───────────────────────────────
+      # Checkout
+      # ───────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ───────────────────────────────
+      # Login to GHCR
+      # ───────────────────────────────
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ───────────────────────────────
+      # Build & Push API
+      # ───────────────────────────────
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./.docker/backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_BACKEND }}:latest
+            ghcr.io/${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+
+      # ───────────────────────────────
+      # Build & Push Web
+      # ───────────────────────────────
+      - name: Build & Push Web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./.docker/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_WEB }}:latest
+            ghcr.io/${{ env.IMAGE_WEB }}:${{ github.sha }}
+
+      # ───────────────────────────────
+      # Deploy to EC2 (PIPE COMPOSE)
+      # ───────────────────────────────
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_EC2_HOST }}
+          username: ${{ secrets.STAGING_EC2_USER }}
+          key: ${{ secrets.STAGING_EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "Deploying on EC2..."
+            docker compose -f - pull
+            docker compose -f - up -d
+        env:
+          COMPOSE_FILE: docker-compose.prod.yml
+        # Pipe compose file into SSH
+        shell: bash
+        run: |
+          cat docker-compose.prod.yml | ssh \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.STAGING_EC2_USER }}@${{ secrets.STAGING_EC2_HOST }} \
+            "cd /home/ubuntu/marcx-ai" \
+            "docker compose -f - pull && docker compose -f - up -d"

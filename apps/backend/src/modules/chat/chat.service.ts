@@ -13,40 +13,41 @@ export class ChatService {
   constructor(private readonly fileStorageService: FileStorageService) {}
 
   async createMessage(
+    sessionId: string,
     createMessageDto: CreateMessageDto,
     files: Express.Multer.File[],
     userId: string,
   ) {
     // Verify session exists and user has access
     const sessionRecord = await db.query.session.findFirst({
-      where: and(
-        eq(session.id, createMessageDto.sessionId),
-        eq(session.creatorId, userId),
-      ),
+      where: and(eq(session.id, sessionId), eq(session.creatorId, userId)),
     });
 
     if (!sessionRecord) {
       throw new NotFoundException('Session not found or access denied');
     }
 
-    // Create message
+    // Create user message
     const [newMessage] = await db
       .insert(chatMessage)
       .values({
-        sessionId: createMessageDto.sessionId,
+        sessionId,
         userId,
-        role: createMessageDto.role,
+        role: 'USER',
         content: createMessageDto.content,
       })
       .returning();
 
     // Upload and save file attachments if provided
     if (files && files.length > 0) {
-      const uploadedFiles = await this.fileStorageService.uploadFiles(files);
+      const uploadedFiles = await this.fileStorageService.uploadFiles(
+        files,
+        `session/${sessionId}/raw`,
+      );
 
       await db.insert(file).values(
         uploadedFiles.map((uploadedFile) => ({
-          sessionId: createMessageDto.sessionId,
+          sessionId,
           chatId: newMessage.id,
           name: uploadedFile.name,
           url: uploadedFile.url,
@@ -56,11 +57,36 @@ export class ChatService {
       );
     }
 
-    // Return message with files
+    // Generate AI response (placeholder - will be replaced with actual AI integration)
+    const aiResponseContent = this.generateLoremIpsum();
+
+    const [aiMessage] = await db
+      .insert(chatMessage)
+      .values({
+        sessionId,
+        userId, // We use the same userId for now
+        role: 'ASSISTANT',
+        content: aiResponseContent,
+      })
+      .returning();
+
+    // Return AI message with user info
     return db.query.chatMessage.findFirst({
-      where: eq(chatMessage.id, newMessage.id),
+      where: eq(chatMessage.id, aiMessage.id),
       with: { files: true, user: true },
     });
+  }
+
+  private generateLoremIpsum(): string {
+    const loremTexts = [
+      'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+      'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+      'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
+      'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+      'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.',
+    ];
+    
+    return loremTexts[Math.floor(Math.random() * loremTexts.length)];
   }
 
   async getMessages(sessionId: string, userId: string) {
@@ -120,7 +146,10 @@ export class ChatService {
     }
 
     // Upload files to storage
-    const uploadedFiles = await this.fileStorageService.uploadFiles(files);
+    const uploadedFiles = await this.fileStorageService.uploadFiles(
+      files,
+      `session/${sessionId}/raw`,
+    );
 
     // Save file records to database
     const newFiles = await db

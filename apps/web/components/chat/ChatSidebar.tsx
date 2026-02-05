@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/AuthContext"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import type { ChatSession } from "@marcx/db/schema"
+import type { Session } from "@/lib/backend/types"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,12 +20,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
+import { NewChatDialog } from "./NewChatDialog"
 
 interface ChatSidebarProps {
-  sessions: ChatSession[]
+  sessions: Session[]
   currentSessionId: string | null
   onSelectSession: (id: string) => void
-  onNewSession: () => void
+  onNewSession: (title?: string) => void
   onDeleteSession: (id: string) => void
   onRenameSession: (id: string, title: string) => void
 }
@@ -50,7 +51,7 @@ export function ChatSidebar({
     router.push("/login")
   }
 
-  const handleStartEdit = (session: ChatSession) => {
+  const handleStartEdit = (session: Session) => {
     setEditingId(session.id)
     setEditTitle(session.title)
   }
@@ -66,10 +67,7 @@ export function ChatSidebar({
   const sidebarContent = (
     <div className="flex h-full flex-col">
       <div className="p-4 border-b">
-        <Button onClick={onNewSession} className="w-full justify-start gap-2">
-          <Plus className="h-4 w-4" />
-          New Chat
-        </Button>
+        <NewChatDialog onCreateSession={onNewSession} />
       </div>
 
       <ScrollArea className="flex-1 px-2">

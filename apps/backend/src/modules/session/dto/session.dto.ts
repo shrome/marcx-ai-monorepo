@@ -1,5 +1,11 @@
 import { IsNotEmpty, IsString, IsOptional, IsEnum } from 'class-validator';
 
+export class CreateChatSessionDto {
+  @IsString()
+  @IsOptional()
+  title?: string;
+}
+
 export class CreateSessionDto {
   @IsEnum(['CHAT', 'CASE'])
   @IsNotEmpty()
