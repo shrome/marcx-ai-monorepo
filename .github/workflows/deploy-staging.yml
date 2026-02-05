@@ -73,15 +73,6 @@ jobs:
           script: |
             set -e
             echo "Deploying on EC2..."
+            cd ~/marcx-ai
             docker compose -f - pull
             docker compose -f - up -d
-        env:
-          COMPOSE_FILE: docker-compose.prod.yml
-        # Pipe compose file into SSH
-        shell: bash
-        run: |
-          cat docker-compose.prod.yml | ssh \
-            -o StrictHostKeyChecking=no \
-            ${{ secrets.STAGING_EC2_USER }}@${{ secrets.STAGING_EC2_HOST }} \
-            "cd /home/ubuntu/marcx-ai" \
-            "docker compose -f - pull && docker compose -f - up -d"
