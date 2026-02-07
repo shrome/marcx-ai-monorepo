@@ -1,0 +1,39 @@
+# -----------------------------------------------------
+# Development Runtime: NestJS (Monorepo)
+# -----------------------------------------------------
+FROM node:20-alpine AS develop
+
+ENV NODE_ENV=development
+
+# pnpm support
+RUN corepack enable
+
+WORKDIR /app
+
+# -----------------------------------------------------
+# 1. Copy ONLY files needed for dependency install
+#    (best layer caching)
+# -----------------------------------------------------
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# -----------------------------------------------------
+# 2. Copy full source AFTER deps are cached
+# -----------------------------------------------------
+COPY apps ./apps
+COPY packages ./packages
+
+# Install deps
+RUN pnpm install 
+
+# -----------------------------------------------------
+# 3. Build shared packages first
+#    (required for backend dev)
+# -----------------------------------------------------
+RUN pnpm --filter "./packages/**" build
+
+# -----------------------------------------------------
+# 4. Run backend in dev mode
+# -----------------------------------------------------
+WORKDIR /app/apps/backend
+
+CMD ["pnpm", "dev"]

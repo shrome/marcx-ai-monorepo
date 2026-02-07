@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     env_file: .env
     volumes:
-      - ./docker/postgresql/data:/data
+      - ./docker/postgresql/data:/var/lib/postgresql/data
     ports:
       - 15432:5432
 
@@ -28,32 +28,47 @@ services:
   redis:
     image: redis:7
     container_name: redis
-    ports:
-      - 16379:6379
     volumes:
       - ./docker/redis/data:/data
 
   backend:
-    image: ghcr.io/marcx-ai-monorepo/backend:latest
-    restart: always
+    container_name: backend
+    # image: ghcr.io/shrome/backend:latest
+    build:
+      context: .
+      dockerfile: .docker/backend/Dockerfile
+    restart: 'unless-stopped'
     env_file: .env
+    ports:
+      - 4000:4000
     depends_on:
       - pgbouncer
       - redis
 
   web:
-    image: ghcr.io/marcx-ai-monorepo/web:latest
-    restart: always
+    container_name: web
+    # image: ghcr.io/shrome/web:latest
+    build:
+      context: .
+      dockerfile: .docker/web/Dockerfile
+    restart: 'unless-stopped'
     env_file: .env
+    ports:
+      - 3000:3000
+    depends_on:
+      - backend
 
   caddy:
+    container_name: caddy
     image: caddy:2
     ports:
       - 80:80
       - 443:443
+    restart: unless-stopped
     volumes:
-      - ./caddy/Caddyfile
-      - caddy:/data
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy/data:/data
+      - ./caddy/config:/config
     depends_on:
       - web
       - backend

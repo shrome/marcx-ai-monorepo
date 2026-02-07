@@ -1,0 +1,36 @@
+# -----------------------------------------------------
+# Development Runtime: Next.js (Monorepo)
+# -----------------------------------------------------
+FROM node:20-alpine AS develop
+
+ENV NODE_ENV=development
+
+RUN corepack enable
+
+WORKDIR /app
+
+# -----------------------------------------------------
+# 1. Copy ONLY files needed for dependency install
+# -----------------------------------------------------
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# -----------------------------------------------------
+# 2. Copy full source AFTER deps are cached
+# -----------------------------------------------------
+COPY apps ./apps
+COPY packages ./packages
+
+# Install deps
+RUN pnpm install 
+
+# -----------------------------------------------------
+# 3. Build shared packages first
+# -----------------------------------------------------
+RUN pnpm --filter "./packages/**" build
+
+# -----------------------------------------------------
+# 4. Run Next.js in dev mode
+# -----------------------------------------------------
+WORKDIR /app/apps/web
+
+CMD ["pnpm", "dev"]

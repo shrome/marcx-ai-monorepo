@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -23,7 +22,8 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
-    "drizzle-orm": "0.45.1"
+    "drizzle-orm": "0.45.1",
+    "pg": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",
