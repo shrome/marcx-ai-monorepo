@@ -2,25 +2,39 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:16
-    restart: always
+    image: postgres:16 
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     env_file: .env
     volumes:
-      - pg:/var/lib/postgresql/data
+      - ./docker/postgresql/data:/data
+    ports:
+      - 15432:5432
 
   pgbouncer:
     image: edoburu/pgbouncer
-    restart: always
+    container_name: pgbouncer
     env_file: .env
+    volumes:
+      - ./pgbouncer:/etc/pgbouncer
+    ports:
+      - "16432:${PGBOUNCER_PORT}"
     depends_on:
       - postgres
 
   redis:
     image: redis:7
-    restart: always
+    container_name: redis
+    ports:
+      - 16379:6379
+    volumes:
+      - ./docker/redis/data:/data
 
-  api:
-    image: ghcr.io/your-org/api:latest
+  backend:
+    image: ghcr.io/marcx-ai-monorepo/backend:latest
     restart: always
     env_file: .env
     depends_on:
@@ -28,7 +42,7 @@ services:
       - redis
 
   web:
-    image: ghcr.io/your-org/web:latest
+    image: ghcr.io/marcx-ai-monorepo/web:latest
     restart: always
     env_file: .env
 
@@ -42,5 +56,5 @@ services:
       - caddy:/data
     depends_on:
       - web
-      - api
+      - backend
 
