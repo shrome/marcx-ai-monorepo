@@ -33,7 +33,7 @@ services:
 
   backend:
     container_name: backend
-    image: ghcr.io/backend:latest
+    image: ghcr.io/shrome/marcx-ai-monorepo-backend:latest
     restart: 'unless-stopped'
     env_file: .env
     ports:
@@ -44,7 +44,7 @@ services:
 
   web:
     container_name: web
-    image: ghcr.io/web:latest
+    image: ghcr.io/shrome/marcx-ai-monorepo-web:latest
     restart: 'unless-stopped'
     env_file: .env
     ports:
