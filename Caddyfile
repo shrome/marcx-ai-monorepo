@@ -1,7 +1,3 @@
 staging.piofin.ai {
     reverse_proxy web:3000
 }
-
-localhost {
-    reverse_proxy web:3000
-}
