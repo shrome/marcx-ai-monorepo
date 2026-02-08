@@ -33,10 +33,7 @@ services:
 
   backend:
     container_name: backend
-    # image: ghcr.io/shrome/backend:latest
-    build:
-      context: .
-      dockerfile: .docker/backend/Dockerfile
+    image: ghcr.io/backend:latest
     restart: 'unless-stopped'
     env_file: .env
     ports:
@@ -47,10 +44,7 @@ services:
 
   web:
     container_name: web
-    # image: ghcr.io/shrome/web:latest
-    build:
-      context: .
-      dockerfile: .docker/web/Dockerfile
+    image: ghcr.io/web:latest
     restart: 'unless-stopped'
     env_file: .env
     ports:
