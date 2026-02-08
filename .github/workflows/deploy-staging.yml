@@ -74,12 +74,16 @@ jobs:
             set -e
             echo "Deploying on EC2..."
             cd ~/marcx-ai
+            pwd
+            test -f .env || (echo ".env missing" && exit 1)
             curl -fsSL \
               https://raw.githubusercontent.com/shrome/marcx-ai-monorepo/${{ github.sha }}/docker-compose.yml \
               -o docker-compose.yml
+            echo "Fetched latest docker-compose.yml"
             curl -fsSL \
               https://raw.githubusercontent.com/shrome/marcx-ai-monorepo/${{ github.sha }}/Caddyfile \
               -o Caddyfile
+            echo "Fetched latest Caddyfile"
             docker compose pull
             echo "Starting up containers..."
-            docker compose up -d
+            docker compose up -d --remove-orphans
