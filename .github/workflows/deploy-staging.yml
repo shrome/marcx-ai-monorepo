@@ -75,4 +75,5 @@ jobs:
             echo "Deploying on EC2..."
             cd ~/marcx-ai
             docker compose pull
+            echo "Starting up containers..."
             docker compose up -d
