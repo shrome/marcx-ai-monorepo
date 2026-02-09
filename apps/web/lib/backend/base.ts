@@ -19,7 +19,7 @@ export class Backend {
   private refreshPromise: Promise<void> | null = null;
 
   constructor(config: BackendConfig = {}) {
-    const baseURL = `${config.baseUrl || process.env.API_URL || 'http://staging-api.piofin.ai'}/api`;
+    const baseURL = `${config.baseUrl || process.env.API_URL || 'https://staging-api.piofin.ai'}/api`;
     
     this.onAuthError = config.onAuthError;
 
