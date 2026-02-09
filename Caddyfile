@@ -1,3 +1,7 @@
 staging.piofin.ai {
     reverse_proxy web:3000
 }
+
+staging-api.piofin.ai {
+    reverse_proxy backend:4000
+}

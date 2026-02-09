@@ -28,7 +28,12 @@ async function bootstrap() {
 
   // Enable CORS with credentials
   app.enableCors({
-    origin: '*',
+    origin: [
+      'https://staging.piofin.ai',
+      ...(process.env.NODE_ENV === 'development'
+        ? ['http://localhost:3000']
+        : []),
+    ],
     credentials: true,
   });
 
