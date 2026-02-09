@@ -86,4 +86,5 @@ jobs:
             echo "Fetched latest Caddyfile"
             docker compose pull
             echo "Starting up containers..."
+            docker container rm -f web backend
             docker compose up -d --remove-orphans
