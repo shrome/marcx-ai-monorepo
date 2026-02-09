@@ -19,7 +19,7 @@ export class Backend {
   private refreshPromise: Promise<void> | null = null;
 
   constructor(config: BackendConfig = {}) {
-    const baseURL = `${config.baseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://backend:4000'}/api`;
+    const baseURL = `${config.baseUrl || process.env.API_URL || 'http://backend:4000'}/api`;
     
     this.onAuthError = config.onAuthError;
 
