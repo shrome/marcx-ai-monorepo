@@ -12,7 +12,7 @@ interface SendOtpEmailParams {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly resend: Resend;
-  private readonly fromEmail: string = 'MarcX AI <onboarding@resend.dev>';
+  private readonly fromEmail: string = 'MarcX AI <onboarding@staging.piofin.ai>';
 
   constructor() {
     const apiKey = process.env.RESEND_API_KEY;
