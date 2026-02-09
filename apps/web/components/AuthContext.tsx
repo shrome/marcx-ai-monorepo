@@ -1,13 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import {
-  useLogin,
-  useRegister,
-  useSendOtp,
-  useLogout,
-  useCurrentUser,
-} from "@/hooks/useAuthQueries"
+import { trpc } from "@/trpc/client"
 import type { AuthResponse } from "@/lib/backend/types"
 
 interface User {
@@ -27,28 +21,17 @@ interface AuthContextType {
   register: (email: string, name: string) => Promise<{ message: string }>
   sendOtp: (email: string) => Promise<void>
   logout: () => Promise<void>
-  setUser: (user: User | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const loginMutation = trpc.auth.login.useMutation()
+  const registerMutation = trpc.auth.register.useMutation()
+  const sendOtpMutation = trpc.auth.sendOtp.useMutation()
+  const logoutMutation = trpc.auth.logout.useMutation()
+  const { data: currentUserData, isLoading: isLoadingUser } = trpc.user.getCurrentUser.useQuery(undefined, { retry: false })
 
-  const loginMutation = useLogin()
-  const registerMutation = useRegister()
-  const sendOtpMutation = useSendOtp()
-  const logoutMutation = useLogout()
-  const { data: currentUserData, isLoading: isLoadingUser } = useCurrentUser()
-
-  useEffect(() => {
-    // Sync user state with current user query
-    if (currentUserData?.user) {
-      setUser(currentUserData.user)
-    } else {
-      setUser(null)
-    }
-  }, [currentUserData])
 
   const login = async (email: string) => {
     // Login now sends OTP, doesn't return user immediately
@@ -66,19 +49,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await logoutMutation.mutateAsync()
-    setUser(null)
   }
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: currentUserData?.user || null,
         isLoading: isLoadingUser,
         login,
         register,
         sendOtp,
         logout,
-        setUser,
       }}
     >
       {children}

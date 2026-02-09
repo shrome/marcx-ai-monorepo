@@ -149,7 +149,7 @@ export function useLogout() {
 export function useRefreshToken() {
   return useMutation({
     mutationFn: async () => {
-      return await backend.auth.refreshAccessToken()
+      return await backend.auth.refreshToken()
     },
   })
 }

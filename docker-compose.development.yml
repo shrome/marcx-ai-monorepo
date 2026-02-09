@@ -33,6 +33,16 @@ services:
     volumes:
       - ./docker/redis/data:/data
 
+  # packages:
+  #   image: node:20-alpine
+  #   container_name: packages
+  #   working_dir: /app
+  #   env_file: .env
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #   command: pnpm --filter "./packages/**" dev
+
   backend:
     build:
       context: .
@@ -51,8 +61,8 @@ services:
       dockerfile: .docker/web/Dockerfile.dev
     container_name: web
     env_file: .env
-    depends_on:
-      - backend
+    # depends_on:
+    #   - packages
     ports:
       - 3000:3000
 

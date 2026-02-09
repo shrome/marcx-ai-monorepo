@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useLogin, useVerifyLoginOtp, useCurrentUser } from "@/hooks/useAuthQueries"
+import { trpc } from "@/trpc/client"
 import { CompanyForm } from "./CompanyForm"
 import { toast } from "sonner"
 import { Loader2, Mail } from "lucide-react"
@@ -17,9 +17,9 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 
 export function LoginForm() {
   const router = useRouter()
-  const loginMutation = useLogin()
-  const verifyOtpMutation = useVerifyLoginOtp()
-  const { data: currentUser } = useCurrentUser()
+  const loginMutation = trpc.auth.login.useMutation()
+  const verifyOtpMutation = trpc.auth.verifyLoginOtp.useMutation()
+  const { data: currentUser } = trpc.user.getCurrentUser.useQuery(undefined, { retry: false })
 
   const [step, setStep] = useState<"email" | "verify">("email")
   const [email, setEmail] = useState("")

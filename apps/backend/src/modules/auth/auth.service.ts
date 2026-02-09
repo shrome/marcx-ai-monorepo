@@ -188,6 +188,7 @@ export class AuthService {
       purpose: 'login',
     });
 
+    console.log('Login OTP sent to:', email, code);
     return {
       message: 'OTP sent to your email. Please verify to complete login.',
     };

@@ -7,14 +7,8 @@ import { ChatMessages } from "./ChatMessages"
 import { ChatInput } from "./ChatInput"
 import { useAuth } from "@/components/AuthContext"
 import { toast } from "sonner"
-import {
-  useSessions,
-  useCreateChatSession,
-  useDeleteSession,
-  useUpdateSession,
-  useMessages,
-  useCreateMessage,
-} from "@/hooks/useBackendQueries"
+import { trpc } from "@/trpc/client"
+import { createBackendClient } from "@/lib/backend"
 import type { Session, Message } from "@/lib/backend/types"
 
 interface Attachment {
@@ -26,19 +20,23 @@ interface Attachment {
 export function ChatContainer() {
   const { user } = useAuth()
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const utils = trpc.useUtils()
 
   // Fetch sessions
-  const { data: sessions = [], isLoading: sessionsLoading } = useSessions()
+  const { data: sessions = [], isLoading: sessionsLoading } = trpc.session.findAll.useQuery()
   const chatSessions = sessions.filter((s) => s.type === "CHAT")
 
   // Fetch messages for current session
-  const { data: messages = [], isLoading: messagesLoading } = useMessages(currentSessionId || "")
+  const { data: messages = [], isLoading: messagesLoading } = trpc.chat.getMessages.useQuery(
+    { sessionId: currentSessionId || "" },
+    { enabled: !!currentSessionId }
+  )
 
   // Mutations
-  const createChatSession = useCreateChatSession()
-  const deleteSession = useDeleteSession()
-  const updateSession = useUpdateSession()
-  const createMessage = useCreateMessage()
+  const createChatSession = trpc.session.createChatSession.useMutation()
+  const deleteSession = trpc.session.remove.useMutation()
+  const updateSession = trpc.session.update.useMutation()
+  const createMessage = trpc.chat.createMessage.useMutation()
 
   // Create initial session on mount if none exist
   useEffect(() => {
@@ -49,7 +47,7 @@ export function ChatContainer() {
 
   const handleNewSession = async (title?: string) => {
     try {
-      const session = await createChatSession.mutateAsync(title ? { title } : undefined)
+      const session = await createChatSession.mutateAsync(title ? { title } : {})
       setCurrentSessionId(session.id)
     } catch (error) {
       toast.error("Failed to create new chat")
@@ -62,7 +60,7 @@ export function ChatContainer() {
 
   const handleDeleteSession = async (id: string) => {
     try {
-      await deleteSession.mutateAsync(id)
+      await deleteSession.mutateAsync({ id })
       if (currentSessionId === id) {
         const remaining = chatSessions.filter((s) => s.id !== id)
         if (remaining.length > 0) {
@@ -93,23 +91,28 @@ export function ChatContainer() {
     }
 
     try {
-      // Convert attachments to File objects if needed
-      const files = attachments.length > 0 ? await Promise.all(
-        attachments.map(async (a) => {
-          const response = await fetch(a.url)
-          const blob = await response.blob()
-          return new File([blob], a.name, { type: a.type })
-        })
-      ) : undefined
+      // If there are file attachments, use backend client directly
+      // (tRPC doesn't support File uploads over the wire)
+      if (attachments.length > 0) {
+        const backend = createBackendClient()
+        const files = await Promise.all(
+          attachments.map(async (a) => {
+            const response = await fetch(a.url)
+            const blob = await response.blob()
+            return new File([blob], a.name, { type: a.type })
+          })
+        )
 
-      // Send message to backend
-      await createMessage.mutateAsync({
-        sessionId: currentSessionId,
-        data: {
-          content,
-        },
-        files,
-      })
+        await backend.chat.createMessage(currentSessionId, { content }, files)
+        // Invalidate messages query to refetch
+        await utils.chat.getMessages.invalidate({ sessionId: currentSessionId })
+      } else {
+        // No files, use tRPC mutation
+        await createMessage.mutateAsync({
+          sessionId: currentSessionId,
+          data: { content },
+        })
+      }
 
       toast.success("Message sent")
     } catch (error) {

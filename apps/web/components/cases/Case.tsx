@@ -8,14 +8,16 @@ import { HardDrive, MessageSquare, LogOut, Plus, Paperclip, X, FileIcon } from "
 import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useCases, useCreateCase } from "@/hooks/useBackendQueries"
+import { trpc } from "@/trpc/client"
+import { createBackendClient } from "@/lib/backend"
 import { Textarea } from "@/components/ui/textarea"
 
 export function Case() {
   const { user, logout } = useAuth()
   const router = useRouter()
-  const { data: cases, isLoading } = useCases()
-  const createCaseMutation = useCreateCase()
+  const utils = trpc.useUtils()
+  const { data: cases, isLoading } = trpc.case.findAll.useQuery()
+  const createCaseMutation = trpc.case.create.useMutation()
   
   const [files, setFiles] = useState<File[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -55,16 +57,32 @@ export function Case() {
     }
 
     try {
-      await createCaseMutation.mutateAsync({
-        data: {
+      // If there are file attachments, use backend client directly
+      // (tRPC doesn't support File uploads over the wire)
+      if (files.length > 0) {
+        const backend = createBackendClient()
+        await backend.case.create(
+          {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            clientName: clientName.trim(),
+            priority,
+            companyId: user.companyId,
+          },
+          files
+        )
+        // Invalidate cases query to refetch
+        await utils.case.findAll.invalidate()
+      } else {
+        // No files, use tRPC mutation
+        await createCaseMutation.mutateAsync({
           title: title.trim(),
           description: description.trim() || undefined,
           clientName: clientName.trim(),
           priority,
           companyId: user.companyId,
-        },
-        files: files.length > 0 ? files : undefined,
-      })
+        })
+      }
 
       toast.success("Case created successfully")
       setTitle("")

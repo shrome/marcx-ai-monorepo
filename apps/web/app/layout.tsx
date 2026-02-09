@@ -5,6 +5,8 @@ import { TRPCProvider } from "@/trpc/client"
 import { AuthProvider } from "@/components/AuthContext"
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
+import { getReactQueryHelper } from "@/trpc/server"
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -15,21 +17,34 @@ export const metadata: Metadata = {
     generator: 'v0.app'
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const helper = await getReactQueryHelper();
+
   return (
     <html lang="en">
       <body className="font-sans antialiased">
         <TRPCProvider>
-          <AuthProvider>
-            {children}
-            <Toaster />
-          </AuthProvider>
+          <HydrationBoundary
+            state={dehydrate(helper.queryClient)}
+            options={{
+              defaultOptions: {
+                queries: {
+                  gcTime: Infinity,
+                },
+              },
+            }}
+          >
+            <AuthProvider>
+              {children}
+              <Toaster />
+            </AuthProvider>
+          </HydrationBoundary>
         </TRPCProvider>
       </body>
     </html>
-  )
+  );
 }

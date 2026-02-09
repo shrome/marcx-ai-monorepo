@@ -49,10 +49,11 @@ export class AuthClient extends Backend {
   }
 
   /**
-   * Refresh access token using the refresh token cookie
+   * Refresh access token using the refresh token
+   * The refresh token will be sent via Authorization header (read from cookie by base client)
    */
-  async refreshAccessToken(): Promise<{ message: string }> {
-    return this.post<{ message: string }>('/auth/refresh');
+  async refreshToken(): Promise<{ message: string; accessToken: string; expiresIn: number }> {
+    return this.post<{ message: string; accessToken: string; expiresIn: number }>('/auth/refresh');
   }
 
   /**

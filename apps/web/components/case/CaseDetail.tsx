@@ -1,7 +1,7 @@
 "use client"
 
 import { FileCategorySections } from "./FileCategorySections"
-import { useCase } from "@/hooks/useBackendQueries"
+import { trpc } from "@/trpc/client"
 
 interface CaseFile {
   id: string
@@ -17,7 +17,7 @@ interface CaseDetailProps {
 }
 
 export function CaseDetail({ sessionId }: CaseDetailProps) {
-  const { data: caseData, isLoading } = useCase(sessionId)
+  const { data: caseData, isLoading } = trpc.case.findOne.useQuery({ id: sessionId })
 
   if (isLoading) {
     return (

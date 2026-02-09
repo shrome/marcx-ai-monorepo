@@ -5,16 +5,18 @@ import {
   UseGuards,
   Request,
   Response,
-  Get,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as express from 'express';
 import { AuthService } from './auth.service';
-import { UserService } from '../user/user.service';
 import {
   RegisterDto,
   LoginDto,
   SendOtpDto,
   VerifyOtpDto,
+  RefreshTokenDto,
+  RevokeTokenDto,
 } from './dto/auth.dto';
 import { AuthGuard } from './guards/auth.guard';
 
@@ -39,9 +41,38 @@ interface RequestWithUser extends Request {
 
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
+
+  /**
+   * Extract refresh token from multiple sources (priority order):
+   * 1. Request body
+   * 2. Authorization header (Bearer token)
+   * 3. Cookie
+   */
+  private extractRefreshToken(
+    req: RequestWithCookies,
+    body?: RefreshTokenDto | RevokeTokenDto,
+    authHeader?: string,
+  ): string {
+    // Priority 1: Request body
+    if (body?.refreshToken) {
+      return body.refreshToken;
+    }
+
+    // Priority 2: Authorization header (Bearer token)
+    if (authHeader?.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+
+    // Priority 3: Cookie
+    if (req.cookies?.refreshToken) {
+      return req.cookies.refreshToken;
+    }
+
+    throw new UnauthorizedException(
+      'No refresh token found in body, header, or cookie',
+    );
+  }
 
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
@@ -111,18 +142,21 @@ export class AuthController {
   @Post('refresh')
   async refreshToken(
     @Request() req: RequestWithCookies,
+    @Body() body: RefreshTokenDto,
+    @Headers('authorization') authHeader: string,
     @Response({ passthrough: true }) res: express.Response,
   ) {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = this.extractRefreshToken(req, body, authHeader);
 
-    if (!refreshToken) {
-      throw new Error('No refresh token found');
-    }
+    console.log('Refresh token received from:', {
+      fromBody: !!body?.refreshToken,
+      fromHeader: !!authHeader,
+      fromCookie: !!req.cookies?.refreshToken,
+    });
 
-    console.log('Refresh token received:', refreshToken);
     const result = await this.authService.refreshAccessToken(refreshToken);
 
-    // Set new access token cookie
+    // Set new access token cookie (for cookie-based clients)
     res.cookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -130,23 +164,34 @@ export class AuthController {
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
-    console.log('New access token set in cookie');
-    return { message: 'Token refreshed successfully' };
+    console.log('New access token set in cookie and response body');
+    return {
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      message: 'Token refreshed successfully',
+    };
   }
 
   @Post('revoke')
   @UseGuards(AuthGuard)
   async revokeToken(
     @Request() req: RequestWithUser,
+    @Body() body: RevokeTokenDto,
+    @Headers('authorization') authHeader: string,
     @Response({ passthrough: true }) res: express.Response,
   ) {
-    const refreshToken = req.cookies?.refreshToken;
-
-    if (refreshToken) {
+    try {
+      const refreshToken = this.extractRefreshToken(req, body, authHeader);
       await this.authService.revokeRefreshToken(refreshToken, req.user.id);
+    } catch (error) {
+      // If no refresh token found, that's okay - just clear cookies
+      console.log(
+        'No refresh token to revoke:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
 
-    // Clear cookies
+    // Clear cookies (for cookie-based clients)
     res.clearCookie('accessToken');
     res.clearCookie('refreshToken');
 

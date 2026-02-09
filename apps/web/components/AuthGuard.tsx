@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, type ReactNode } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { useCurrentUser, useLogout } from "@/hooks/useAuthQueries"
+import { trpc } from "@/trpc/client"
 import { Loader2 } from "lucide-react"
 
 interface AuthGuardContextType {
@@ -32,8 +32,8 @@ export function AuthGuardProvider({
 }: AuthGuardProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { data: currentUser, isLoading } = useCurrentUser()
-  const logoutMutation = useLogout()
+  const { data: currentUser, isLoading } = trpc.user.getCurrentUser.useQuery(undefined, { retry: false })
+  const logoutMutation = trpc.auth.logout.useMutation()
 
   useEffect(() => {
     // Don't redirect while loading

@@ -3,25 +3,25 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { CompanyForm } from "@/components/auth/CompanyForm"
-import { useCurrentUser } from "@/hooks/useAuthQueries"
+import { trpc } from "@/trpc/client"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/components/AuthContext"
 
 export default function CompanySetupPage() {
   const router = useRouter()
-  const { data: currentUser, isLoading } = useCurrentUser()
+  const { data: currentUser, isLoading } = trpc.user.getCurrentUser.useQuery(undefined, { retry: false })
   const { logout } = useAuth()
 
   useEffect(() => {
     if (isLoading) return
 
-    // No session at all - logout and redirect to login
-    if (!currentUser?.user) {
-      logout().then(() => {
-        router.push("/login")
-      })
-      return
-    }
+    // // No session at all - logout and redirect to login
+    // if (!currentUser?.user) {
+    //   logout().then(() => {
+    //     router.push("/login")
+    //   })
+    //   return
+    // }
 
     // Already has company - redirect to chat
     if (currentUser.user.companyId) {
@@ -30,7 +30,7 @@ export default function CompanySetupPage() {
     }
 
     // Has session but no company - stay on this page (correct state)
-  }, [currentUser, isLoading, router, logout])
+  }, [currentUser, isLoading, router])
 
   const handleCompanySetupComplete = () => {
     router.push("/chat")

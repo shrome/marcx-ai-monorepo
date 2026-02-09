@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useRegisterCompany } from "@/hooks/useCompanyQueries"
+import { trpc } from "@/trpc/client"
 import { toast } from "sonner"
 import { Loader2, Building2, Globe } from "lucide-react"
 
@@ -18,7 +18,7 @@ interface CompanyFormProps {
 }
 
 export function CompanyForm({ onSuccess }: CompanyFormProps) {
-  const registerCompanyMutation = useRegisterCompany()
+  const registerCompanyMutation = trpc.company.register.useMutation()
 
   const [companyName, setCompanyName] = useState("")
   const [companyCategory, setCompanyCategory] = useState<"ACCOUNTING" | "MARKETING">("ACCOUNTING")
