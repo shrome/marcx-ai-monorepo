@@ -1,5 +1,6 @@
 import type React from "react"
 import { AuthGuardProvider } from "@/components/AuthGuard"
+import { AppLayout } from "@/components/layout/AppLayout"
 
 export default function AuthLayout({
   children,
@@ -8,7 +9,7 @@ export default function AuthLayout({
 }) {
   return (
     <AuthGuardProvider requireAuth={true} requireCompany={true}>
-      {children}
+      <AppLayout>{children}</AppLayout>
     </AuthGuardProvider>
   )
 }

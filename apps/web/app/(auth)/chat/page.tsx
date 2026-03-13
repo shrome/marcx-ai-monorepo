@@ -1,7 +1,7 @@
 "use client"
 
-import { ChatContainer } from "@/components/chat/ChatContainer"
+import { AskPioContainer } from "@/components/chat/AskPioContainer"
 
 export default function ChatPage() {
-  return <ChatContainer />
+  return <AskPioContainer />
 }
