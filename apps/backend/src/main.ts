@@ -30,6 +30,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://staging.piofin.ai',
+      'https://ai.marinecx.com',
       ...(process.env.NODE_ENV === 'development'
         ? ['http://localhost:3000']
         : []),
