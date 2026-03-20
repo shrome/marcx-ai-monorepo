@@ -22,7 +22,7 @@ export class Backend {
     const envApiUrl =
       process.env.NEXT_PUBLIC_API_URL ||
       process.env.API_URL ||
-      (process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:4000')
+      (process.env.NODE_ENV === 'production' ? 'https://staging-api.piofin.ai' : 'http://localhost:4000')
 
     const baseURL = `${config.baseUrl || envApiUrl || 'https://staging-api.piofin.ai'}/api`
 
