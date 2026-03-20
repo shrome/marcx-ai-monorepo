@@ -1,13 +1,14 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalDependencies": [".env.*"],
-  "globalEnv": [".env.*"],
+  "globalDependencies": [".env.*", "apps/web/.env.*"],
+  "globalEnv": ["APP_ENV"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env.*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "inputs": ["$TURBO_DEFAULT$", ".env.*", "apps/web/.env.*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NEXT_PUBLIC_*", "DATABASE_URL", "API_URL", "APP_ENV"]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -18,7 +19,8 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "inputs": ["$TURBO_DEFAULT$", ".env.*"]
+      "inputs": ["$TURBO_DEFAULT$", ".env.*", "apps/web/.env.*"],
+      "env": ["NEXT_PUBLIC_*", "DATABASE_URL", "API_URL", "APP_ENV"]
     }
   }
 }
