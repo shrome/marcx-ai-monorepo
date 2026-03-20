@@ -19,9 +19,14 @@ export class Backend {
   private refreshPromise: Promise<void> | null = null;
 
   constructor(config: BackendConfig = {}) {
-    const baseURL = `${config.baseUrl || process.env.API_URL || 'https://staging-api.piofin.ai'}/api`;
-    
-    this.onAuthError = config.onAuthError;
+    const envApiUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.API_URL ||
+      (process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:4000')
+
+    const baseURL = `${config.baseUrl || envApiUrl || 'https://staging-api.piofin.ai'}/api`
+
+    this.onAuthError = config.onAuthError
 
     // Create axios instance
     this.client = axios.create({

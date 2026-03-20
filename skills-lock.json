@@ -5,6 +5,11 @@
       "source": "anthropics/skills",
       "sourceType": "github",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "db-design": {
+      "source": ".agents/skills/db-design",
+      "sourceType": "local",
+      "computedHash": "bc2519dfd0f013285867a03d2da3f199a89d8b4201566b208c304e6b36329bbd"
     }
   }
 }
