@@ -53,6 +53,9 @@ jobs:
       # ───────────────────────────────
       - name: Build & Push Web
         uses: docker/build-push-action@v6
+        env:
+          API_URL: ${{ env.API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ env.NEXT_PUBLIC_API_URL }}
         with:
           context: .
           file: ./.docker/web/Dockerfile
