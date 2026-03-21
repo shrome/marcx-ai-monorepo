@@ -53,9 +53,6 @@ jobs:
       # ───────────────────────────────
       - name: Build & Push Web
         uses: docker/build-push-action@v6
-        env:
-          API_URL: ${{ env.API_URL }}
-          NEXT_PUBLIC_API_URL: ${{ env.NEXT_PUBLIC_API_URL }}
         with:
           context: .
           file: ./.docker/web/Dockerfile
@@ -63,6 +60,9 @@ jobs:
           tags: |
             ghcr.io/${{ env.IMAGE_WEB }}:latest
             ghcr.io/${{ env.IMAGE_WEB }}:${{ github.sha }}
+          build-args: |
+            API_URL=${{ vars.API_URL }}
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
 
       # ───────────────────────────────
       # Deploy to EC2 (PIPE COMPOSE)
