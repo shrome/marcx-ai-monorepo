@@ -23,7 +23,7 @@ services:
     volumes:
       - ./pgbouncer:/etc/pgbouncer
     ports:
-      - "5432:${PGBOUNCER_PORT}"
+      - "16432:${PGBOUNCER_PORT}"
     depends_on:
       - postgres
 
