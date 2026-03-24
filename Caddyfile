@@ -9,7 +9,3 @@ ai.marinecx.com {
 staging-api.piofin.ai {
     reverse_proxy backend:4000
 }
-
-staging-db-postgres.piofin.ai {
-    reverse_proxy pgbouncer:6432
-}
