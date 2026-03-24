@@ -11,5 +11,5 @@ staging-api.piofin.ai {
 }
 
 staging-db-postgres.piofin.ai {
-    reverse_proxy pgbouncer:6437
+    reverse_proxy pgbouncer:6432
 }
