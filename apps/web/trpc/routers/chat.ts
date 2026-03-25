@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { router, protectedProcedure } from "../init"
 import { mockStore, generateId } from "@/lib/db/mock-store"
-import type { ChatSession, ChatMessage } from "@marcx/db"
+import type { Session as ChatSession, ChatMessage } from "@marcx/db"
 
 export const chatRouter = router({
   // Get all sessions for user

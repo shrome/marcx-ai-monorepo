@@ -1,7 +1,7 @@
 // In-memory mock store for demo purposes
 // Replace with real Drizzle queries when database is connected
 
-import type { User, ChatSession, ChatMessage, File, Folder } from "@marcx/db"
+import type { User, Session as ChatSession, ChatMessage, File, Folder } from "@marcx/db"
 
 interface MockStore {
   users: Map<string, User & { passwordHash?: string }>
