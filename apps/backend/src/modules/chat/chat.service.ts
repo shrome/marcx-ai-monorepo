@@ -52,7 +52,7 @@ export class ChatService {
           name: uploadedFile.name,
           url: uploadedFile.url,
           size: uploadedFile.size,
-          type: uploadedFile.type,
+          mimeType: uploadedFile.type,
         })),
       );
     }
@@ -161,7 +161,7 @@ export class ChatService {
           name: uploadedFile.name,
           url: uploadedFile.url,
           size: uploadedFile.size,
-          type: uploadedFile.type,
+          mimeType: uploadedFile.type,
         })),
       )
       .returning();

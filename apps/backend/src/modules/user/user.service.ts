@@ -12,7 +12,7 @@ export class UserService {
     const foundUser = await db.query.user.findFirst({
       where: eq(user.id, id),
       with: {
-        company: true,
+        memberships: true,
       },
     });
 
@@ -30,7 +30,7 @@ export class UserService {
     const foundUser = await db.query.user.findFirst({
       where: eq(user.email, email),
       with: {
-        company: true,
+        memberships: true,
       },
     });
 

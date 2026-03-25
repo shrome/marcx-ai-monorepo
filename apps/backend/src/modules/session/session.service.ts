@@ -7,11 +7,11 @@ import { session, user } from '@marcx/db/schema';
 @Injectable()
 export class SessionService {
   async createChatSession(data: { title?: string } = {}, userId: string) {
-    // Get user with company information
+    // Get user with membership information
     const foundUser = await db.query.user.findFirst({
       where: eq(user.id, userId),
       with: {
-        company: true,
+        memberships: true,
       },
     });
 
@@ -19,7 +19,8 @@ export class SessionService {
       throw new NotFoundException('User not found');
     }
 
-    if (!foundUser.companyId) {
+    const membership = foundUser.memberships?.[0];
+    if (!membership) {
       throw new NotFoundException('User does not have an associated company');
     }
 
@@ -29,12 +30,10 @@ export class SessionService {
     const [newSession] = await db
       .insert(session)
       .values({
-        type: 'CHAT',
-        companyId: foundUser.companyId,
+        companyId: membership.companyId,
         creatorId: userId,
         title: sessionTitle,
         status: 'open',
-        priority: 'medium',
       })
       .returning();
 
@@ -45,28 +44,20 @@ export class SessionService {
     const [newSession] = await db
       .insert(session)
       .values({
-        type: createSessionDto.type,
         companyId: createSessionDto.companyId || crypto.randomUUID(),
         creatorId: userId,
         title: createSessionDto.title,
         description: createSessionDto.description,
         status: 'open',
-        priority: createSessionDto.priority || 'medium',
       })
       .returning();
 
     return newSession;
   }
 
-  async findAll(userId: string, type?: 'CHAT' | 'CASE') {
-    const conditions = [eq(session.creatorId, userId)];
-
-    if (type) {
-      conditions.push(eq(session.type, type));
-    }
-
+  async findAll(userId: string) {
     return db.query.session.findMany({
-      where: and(...conditions),
+      where: eq(session.creatorId, userId),
       with: { creator: true },
     });
   }

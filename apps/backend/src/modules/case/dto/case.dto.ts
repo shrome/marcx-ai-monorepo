@@ -2,7 +2,6 @@ import {
   IsNotEmpty,
   IsString,
   IsOptional,
-  IsEnum,
 } from 'class-validator';
 
 export class CreateCaseDto {
@@ -13,14 +12,6 @@ export class CreateCaseDto {
   @IsString()
   @IsOptional()
   description?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  clientName: string;
-
-  @IsEnum(['low', 'medium', 'high'])
-  @IsOptional()
-  priority?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -38,13 +29,5 @@ export class UpdateCaseDto {
 
   @IsString()
   @IsOptional()
-  clientName?: string;
-
-  @IsEnum(['open', 'in_progress', 'closed'])
-  @IsOptional()
   status?: string;
-
-  @IsEnum(['low', 'medium', 'high'])
-  @IsOptional()
-  priority?: string;
 }

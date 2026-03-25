@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
 
 export class CreateChatSessionDto {
   @IsString()
@@ -7,10 +7,6 @@ export class CreateChatSessionDto {
 }
 
 export class CreateSessionDto {
-  @IsEnum(['CHAT', 'CASE'])
-  @IsNotEmpty()
-  type: 'CHAT' | 'CASE';
-
   @IsString()
   @IsNotEmpty()
   title: string;
@@ -18,10 +14,6 @@ export class CreateSessionDto {
   @IsString()
   @IsOptional()
   description?: string;
-
-  @IsEnum(['low', 'medium', 'high'])
-  @IsOptional()
-  priority?: string;
 
   @IsString()
   @IsOptional()
@@ -37,11 +29,6 @@ export class UpdateSessionDto {
   @IsOptional()
   description?: string;
 
-  @IsEnum(['open', 'in_progress', 'closed'])
   @IsOptional()
   status?: string;
-
-  @IsEnum(['low', 'medium', 'high'])
-  @IsOptional()
-  priority?: string;
 }

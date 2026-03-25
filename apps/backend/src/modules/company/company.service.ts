@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { db, eq } from '@marcx/db';
-import { company, user } from '@marcx/db/schema';
+import { company, companyMember } from '@marcx/db/schema';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 
 @Injectable()
@@ -25,22 +25,17 @@ export class CompanyService {
       .values(createCompanyDto)
       .returning();
 
-    // Update the user's companyId
-    const [updatedUser] = await db
-      .update(user)
-      .set({ companyId: newCompany.id })
-      .where(eq(user.id, userId))
+    // Create CompanyMember record linking the user as OWNER
+    const [membership] = await db
+      .insert(companyMember)
+      .values({ userId, companyId: newCompany.id, role: 'OWNER' })
       .returning();
 
     return {
       company: newCompany,
       user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        role: updatedUser.role,
-        emailVerified: updatedUser.emailVerified,
-        companyId: updatedUser.companyId,
+        companyId: membership.companyId,
+        role: membership.role,
       },
     };
   }
@@ -48,12 +43,15 @@ export class CompanyService {
   async findAll() {
     return await db.query.company.findMany({
       with: {
-        users: {
-          columns: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
+        members: {
+          with: {
+            user: {
+              columns: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
         },
       },
@@ -64,13 +62,16 @@ export class CompanyService {
     const foundCompany = await db.query.company.findFirst({
       where: eq(company.id, id),
       with: {
-        users: {
-          columns: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            emailVerified: true,
+        members: {
+          with: {
+            user: {
+              columns: {
+                id: true,
+                name: true,
+                email: true,
+                emailVerified: true,
+              },
+            },
           },
         },
         sessions: {
@@ -97,8 +98,8 @@ export class CompanyService {
     const existingCompany = await db.query.company.findFirst({
       where: eq(company.id, id),
       with: {
-        users: {
-          where: (user, { eq }) => eq(user.id, userId),
+        members: {
+          where: (member, { eq }) => eq(member.userId, userId),
         },
       },
     });
@@ -150,15 +151,18 @@ export class CompanyService {
     const foundCompany = await db.query.company.findFirst({
       where: eq(company.id, id),
       with: {
-        users: {
-          columns: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            emailVerified: true,
-            image: true,
-            createdAt: true,
+        members: {
+          with: {
+            user: {
+              columns: {
+                id: true,
+                name: true,
+                email: true,
+                emailVerified: true,
+                image: true,
+                createdAt: true,
+              },
+            },
           },
         },
       },
@@ -168,7 +172,7 @@ export class CompanyService {
       throw new NotFoundException('Company not found');
     }
 
-    return foundCompany.users;
+    return foundCompany.members.map((m) => ({ ...m.user, role: m.role }));
   }
 
   async getCompanySessions(id: string) {

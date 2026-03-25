@@ -9,7 +9,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { db, eq, and } from '@marcx/db';
-import { user, credential, verificationToken } from '@marcx/db/schema';
+import { user, credential, verificationToken, companyMember } from '@marcx/db/schema';
 import type { JwtPayload } from './strategies/jwt.strategy';
 import { CACHE_MANAGER, type Cache } from '@nestjs/cache-manager';
 import { EmailService } from '../../services/email.service';
@@ -90,7 +90,6 @@ export class AuthService {
         email,
         name,
         emailVerified: false,
-        role: 'COMPANY_OWNER',
       })
       .returning();
 
@@ -134,7 +133,7 @@ export class AuthService {
         id: newUser.id,
         email: newUser.email,
         name: newUser.name,
-        role: newUser.role,
+        role: null,
         emailVerified: false,
       },
       message:
@@ -248,7 +247,9 @@ export class AuthService {
         eq(credential.type, 'EMAIL'),
       ),
       with: {
-        user: true,
+        user: {
+          with: { memberships: true },
+        },
         verificationTokens: {
           where: and(
             eq(verificationToken.purpose, 'EMAIL_VERIFICATION'),
@@ -295,11 +296,13 @@ export class AuthService {
       .where(eq(user.id, userCredential.user.id))
       .returning();
 
+    const membership = userCredential.user.memberships?.[0];
+
     // Generate access and refresh tokens to log user in
     const tokens = await this.generateTokenPair(
       userCredential.user.id,
       userCredential.user.email,
-      userCredential.user.role,
+      membership?.role ?? 'VIEWER',
     );
 
     return {
@@ -309,13 +312,13 @@ export class AuthService {
             id: updatedUser.id,
             email: updatedUser.email,
             name: updatedUser.name,
-            role: updatedUser.role,
+            role: membership?.role ?? null,
             emailVerified: updatedUser.emailVerified,
-            companyId: updatedUser.companyId,
+            companyId: membership?.companyId ?? null,
           }
         : null,
       message: 'Email verified successfully. You are now logged in.',
-      requiresCompanySetup: !updatedUser?.companyId,
+      requiresCompanySetup: !membership?.companyId,
     };
   }
 
@@ -329,7 +332,9 @@ export class AuthService {
         eq(credential.type, 'EMAIL'),
       ),
       with: {
-        user: true,
+        user: {
+          with: { memberships: true },
+        },
         verificationTokens: {
           where: and(
             eq(verificationToken.purpose, 'LOGIN'),
@@ -369,11 +374,13 @@ export class AuthService {
       .set({ used: true })
       .where(eq(verificationToken.id, token.id));
 
+    const membership = userCredential.user.memberships?.[0];
+
     // Generate access and refresh tokens
     const tokens = await this.generateTokenPair(
       userCredential.user.id,
       userCredential.user.email,
-      userCredential.user.role,
+      membership?.role ?? 'VIEWER',
     );
 
     return {
@@ -382,12 +389,12 @@ export class AuthService {
         id: userCredential.user.id,
         email: userCredential.user.email,
         name: userCredential.user.name,
-        role: userCredential.user.role,
+        role: membership?.role ?? null,
         emailVerified: userCredential.user.emailVerified,
-        companyId: userCredential.user.companyId,
+        companyId: membership?.companyId ?? null,
       },
       message: 'Login successful',
-      requiresCompanySetup: !userCredential.user.companyId,
+      requiresCompanySetup: !membership?.companyId,
     };
   }
 

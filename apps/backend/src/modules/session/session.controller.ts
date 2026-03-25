@@ -6,7 +6,6 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -53,9 +52,8 @@ export class SessionController {
   @Get()
   findAll(
     @Request() req: RequestWithUser,
-    @Query('type') type?: 'CHAT' | 'CASE',
   ) {
-    return this.sessionService.findAll(req.user.id, type);
+    return this.sessionService.findAll(req.user.id);
   }
 
   @Get(':id')
