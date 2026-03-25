@@ -94,7 +94,7 @@ erDiagram
     SESSION {
         uuid    id          PK
         uuid    companyId   FK
-        uuid    creatorId   FK
+        uuid    creatorId   FK "→ User (not CompanyMember; stable audit identity even after membership removal)"
         text    title
         text    description
         text    status          "open | closed"

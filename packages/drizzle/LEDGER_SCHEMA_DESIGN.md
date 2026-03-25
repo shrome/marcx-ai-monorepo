@@ -110,7 +110,9 @@ Carries structured AI response data: model name, token counts, tool calls, proce
 ### 11. `ActivityLog` — append-only event stream
 Namespaced `action` strings (`document.uploaded`, `credit.topped_up`, etc.) across all entities. `varchar` not enum — event types grow constantly and migrations per new event type are wasteful. Not a replacement for `CreditTransaction` — that has financial integrity requirements. ActivityLog is for observability.
 
-### 12. Soft-delete on `Document`
+### 13. `Session.creatorId` → `User`, not `CompanyMember`
+`creatorId` is a FK to `User` (not `CompanyMember`) by design. The session already carries `companyId` for company context. `creatorId` answers *who* created the session — that is a permanent user identity, not a role/membership. Linking to `CompanyMember` would be problematic: membership records can be deleted or changed, which would corrupt the audit trail. If the creator's role is needed, JOIN through `companyMember` on `(userId, companyId)` at query time.
+
 `deletedAt TIMESTAMPTZ` on `Document`. Financial documents must never be hard-deleted. Partial indexes on `WHERE deletedAt IS NULL` maintain query performance.
 
 ---
