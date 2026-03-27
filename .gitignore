@@ -40,3 +40,5 @@ yarn-error.log*
 docker/
 pgbouncer/
 caddy/
+
+test-results/

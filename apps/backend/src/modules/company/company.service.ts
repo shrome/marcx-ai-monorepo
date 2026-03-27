@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { db, eq } from '@marcx/db';
-import { company, companyMember } from '@marcx/db/schema';
+import { company, companyMember, user } from '@marcx/db/schema';
 import { CreateCompanyDto, UpdateCompanyDto } from './dto/company.dto';
 
 @Injectable()
@@ -19,21 +19,24 @@ export class CompanyService {
   }
 
   async register(createCompanyDto: CreateCompanyDto, userId: string) {
-    // Create the company
     const [newCompany] = await db
       .insert(company)
       .values(createCompanyDto)
       .returning();
 
-    // Create CompanyMember record linking the user as OWNER
     const [membership] = await db
       .insert(companyMember)
       .values({ userId, companyId: newCompany.id, role: 'OWNER' })
       .returning();
 
+    const registeredUser = await db.query.user.findFirst({
+      where: eq(user.id, userId),
+    });
+
     return {
       company: newCompany,
       user: {
+        ...registeredUser,
         companyId: membership.companyId,
         role: membership.role,
       },
@@ -88,13 +91,7 @@ export class CompanyService {
     return foundCompany;
   }
 
-  async update(
-    id: string,
-    updateCompanyDto: UpdateCompanyDto,
-    userId: string,
-    userRole: string,
-  ) {
-    // Verify company exists
+  async update(id: string, updateCompanyDto: UpdateCompanyDto, userId: string) {
     const existingCompany = await db.query.company.findFirst({
       where: eq(company.id, id),
       with: {
@@ -108,19 +105,14 @@ export class CompanyService {
       throw new NotFoundException('Company not found');
     }
 
-    // Only ADMIN or COMPANY_OWNER can update
-    if (userRole !== 'ADMIN' && userRole !== 'COMPANY_OWNER') {
-      throw new ForbiddenException(
-        'Only admins and company owners can update company details',
-      );
+    const membership = existingCompany.members[0];
+    if (!membership || !['OWNER', 'ADMIN'].includes(membership.role)) {
+      throw new ForbiddenException('Only owners and admins can update company details');
     }
 
     const [updatedCompany] = await db
       .update(company)
-      .set({
-        ...updateCompanyDto,
-        updatedAt: new Date(),
-      })
+      .set({ ...updateCompanyDto, updatedAt: new Date() })
       .where(eq(company.id, id))
       .returning();
 

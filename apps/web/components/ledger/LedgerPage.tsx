@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import {
   Pencil,
   Calendar,
@@ -13,10 +14,21 @@ import {
   LayoutGrid,
   Plus,
   Receipt,
+  Download,
+  Upload,
+  Loader2,
+  AlertCircle,
+  InboxIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { TaskDetailView, type TaskData, type TaskDraft } from "./TaskDetailView"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { useDropzone } from "react-dropzone"
+import { toast } from "sonner"
+import { useGLStatus, useGLTransactions, useExportGL, useUploadGL } from "@/hooks/useAiQueries"
+import { useAuth } from "@/components/AuthContext"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useDocuments } from "@/hooks/useDocumentQueries"
+import type { Document } from "@/lib/backend"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,214 +58,6 @@ interface LedgerRow {
   credit: string
   balance: string
 }
-
-interface LedgerGroup {
-  name: string
-  rows: LedgerRow[]
-}
-
-interface LedgerBook {
-  name: string
-  groups: LedgerGroup[]
-}
-
-// ─── Data ────────────────────────────────────────────────────────────────────
-
-const BOOKS_DATA: Record<string, LedgerBook> = {
-  "book-1": {
-    name: "Ledger 1",
-    groups: [
-      {
-        name: "Cash account",
-        rows: [
-          { date: "01-02-2026", account: "Cash", description: "Opening Balance", debit: "50,000.00", credit: "-", balance: "50,000.00" },
-          { date: "05-02-2026", account: "Accounts Receivable", description: "Client Payment Received", debit: "-", credit: "8,500.00", balance: "56,000.00" },
-          { date: "12-02-2026", account: "Accounts Receivable", description: "Client Invoice #1042", debit: "-", credit: "12,000.00", balance: "67,620.00" },
-        ],
-      },
-      {
-        name: "Expenses account",
-        rows: [
-          { date: "01-02-2026", account: "Rent Expense", description: "Office Rent Payment", debit: "2,500.00", credit: "-", balance: "47,500.00" },
-          { date: "07-02-2026", account: "Utilities Expense", description: "Electricity & Water", debit: "380.00", credit: "-", balance: "55,620.00" },
-          { date: "14-02-2026", account: "Salary Expense", description: "Staff Salaries", debit: "8,000.00", credit: "-", balance: "59,620.00" },
-        ],
-      },
-    ],
-  },
-  "my-ledger-2025": {
-    name: "General Ledger 2025",
-    groups: [
-      {
-        name: "Cash account",
-        rows: [
-          { date: "01-01-2025", account: "Cash", description: "Opening Balance 2025", debit: "30,000.00", credit: "-", balance: "30,000.00" },
-          { date: "10-01-2025", account: "Accounts Receivable", description: "Client A Payment", debit: "-", credit: "15,000.00", balance: "42,500.00" },
-          { date: "20-01-2025", account: "Accounts Receivable", description: "Client B Invoice", debit: "-", credit: "9,800.00", balance: "49,100.00" },
-        ],
-      },
-      {
-        name: "Expenses account",
-        rows: [
-          { date: "05-01-2025", account: "Rent Expense", description: "January Office Rent", debit: "2,500.00", credit: "-", balance: "27,500.00" },
-          { date: "15-01-2025", account: "Marketing Expense", description: "Digital Campaign Q1", debit: "3,200.00", credit: "-", balance: "39,300.00" },
-          { date: "31-01-2025", account: "Salary Expense", description: "January Payroll", debit: "12,000.00", credit: "-", balance: "37,100.00" },
-        ],
-      },
-    ],
-  },
-}
-
-const TASK_MOCK_ROWS = [
-  { date: "01 Feb 2026", description: "Opening Balance", account: "Cash", debit: "50,000.00", credit: "-" },
-  { date: "03 Feb 2026", description: "Office Rent", account: "Rent Expense", debit: "2,500.00", credit: "-" },
-  { date: "05 Feb 2026", description: "Client Payment", account: "Accounts Receivable", debit: "-", credit: "8,500.00" },
-  { date: "07 Feb 2026", description: "Utilities", account: "Utilities Expense", debit: "380.00", credit: "-" },
-  { date: "10 Feb 2026", description: "Software Subscription", account: "Software Expense", debit: "250.00", credit: "-" },
-  { date: "12 Feb 2026", description: "Client Invoice #1042", account: "Accounts Receivable", debit: "-", credit: "12,000.00" },
-  { date: "14 Feb 2026", description: "Staff Salaries", account: "Salary Expense", debit: "8,000.00", credit: "-" },
-  { date: "17 Feb 2026", description: "Marketing Campaign", account: "Marketing Expense", debit: "1,500.00", credit: "-" },
-  { date: "19 Feb 2026", description: "Client Payment", account: "Accounts Receivable", debit: "-", credit: "6,500.00" },
-  { date: "20 Feb 2026", description: "Equipment Purchase", account: "Equipment Expense", debit: "500.00", credit: "-" },
-  { date: "22 Feb 2026", description: "Office Supplies", account: "Office Expense", debit: "500.00", credit: "-" },
-]
-
-// ─── Document-level task mock data ─────────────────────────────────────────
-
-const MOCK_TASKS: TaskData[] = [
-  {
-    id: "task-1",
-    title: "Dyson Maintenance Invoice",
-    type: "Assets",
-    docType: "Invoices",
-    date: "01-02-2026",
-    fileUrl: "Dyson Maintenance Invoice.pdf",
-    quantity: "1",
-    amount: "RM 8,500",
-    itemisedItems: [
-      {
-        id: "item-1",
-        item: "Y1FXC-RKA0890A",
-        description: "Code: HDY/HC/426.",
-        quantity: "1",
-        unitPrice: "RM 8,500",
-        amount: "RM 8,500",
-      },
-    ],
-    correctedItemisedRows: [
-      {
-        id: "corrected-1",
-        item: "Y1FXC-RKA0890A",
-        description: "Code: HDY/HC/426.",
-        quantity: "1",
-        unitPrice: "RM 8,500",
-        amount: "RM 8,500",
-      },
-    ],
-    correctedValues: {},
-    feedbackValues: {},
-  },
-  {
-    id: "task-2",
-    title: "Office Rent — February 2026",
-    type: "Expenses",
-    docType: "Receipts",
-    date: "03-02-2026",
-    fileUrl: "Office Rent Feb 2026.pdf",
-    quantity: "1",
-    amount: "RM 2,500",
-    itemisedItems: [
-      {
-        id: "item-2",
-        item: "RENT-FEB26",
-        description: "Monthly office rental — Wisma ABC, Level 12",
-        quantity: "1",
-        unitPrice: "RM 2,500",
-        amount: "RM 2,500",
-      },
-    ],
-    correctedItemisedRows: [],
-    correctedValues: {},
-    feedbackValues: {},
-  },
-  {
-    id: "task-3",
-    title: "Utilities Bill — Electricity & Water",
-    type: "Expenses",
-    docType: "Invoices",
-    date: "07-02-2026",
-    fileUrl: "Utilities Feb 2026.pdf",
-    quantity: "2",
-    amount: "RM 380",
-    itemisedItems: [
-      {
-        id: "item-3a",
-        item: "ELEC-FEB26",
-        description: "Electricity — TNB Feb 2026",
-        quantity: "1",
-        unitPrice: "RM 280",
-        amount: "RM 280",
-      },
-      {
-        id: "item-3b",
-        item: "WATER-FEB26",
-        description: "Water — SYABAS Feb 2026",
-        quantity: "1",
-        unitPrice: "RM 100",
-        amount: "RM 100",
-      },
-    ],
-    correctedItemisedRows: [],
-    correctedValues: {},
-    feedbackValues: {},
-  },
-  {
-    id: "task-4",
-    title: "Staff Salaries — February 2026",
-    type: "Expenses",
-    docType: "Payroll",
-    date: "14-02-2026",
-    fileUrl: "Payroll Feb 2026.pdf",
-    quantity: "4",
-    amount: "RM 8,000",
-    itemisedItems: [
-      {
-        id: "item-4",
-        item: "PAYROLL-FEB26",
-        description: "February 2026 payroll — 4 employees",
-        quantity: "4",
-        unitPrice: "RM 2,000",
-        amount: "RM 8,000",
-      },
-    ],
-    correctedItemisedRows: [],
-    correctedValues: {},
-    feedbackValues: {},
-  },
-  {
-    id: "task-5",
-    title: "Marketing Campaign — Q1 2026",
-    type: "Expenses",
-    docType: "Invoices",
-    date: "17-02-2026",
-    fileUrl: "Marketing Q1 2026.pdf",
-    quantity: "1",
-    amount: "RM 1,500",
-    itemisedItems: [
-      {
-        id: "item-5",
-        item: "MKT-Q1-26",
-        description: "Digital marketing campaign — Google & Meta Ads",
-        quantity: "1",
-        unitPrice: "RM 1,500",
-        amount: "RM 1,500",
-      },
-    ],
-    correctedItemisedRows: [],
-    correctedValues: {},
-    feedbackValues: {},
-  },
-]
 
 // ─── Shared sub-components ─────────────────────────────────────────────────
 
@@ -320,7 +124,15 @@ function LedgerTable({ rows }: { rows: LedgerRow[] }) {
 
 // ─── Tasks table (no Balance column) ──────────────────────────────────────
 
-function TaskTable({ rows }: { rows: typeof TASK_MOCK_ROWS }) {
+type TaskRow = {
+  date: string
+  description: string
+  account: string
+  debit: string
+  credit: string
+}
+
+function TaskTable({ rows }: { rows: TaskRow[] }) {
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <table className="w-full text-sm">
@@ -355,8 +167,15 @@ function TaskTable({ rows }: { rows: typeof TASK_MOCK_ROWS }) {
 
 // ─── Overview tab ──────────────────────────────────────────────────────────
 
-function OverviewTab({ book }: { book: LedgerBook }) {
+interface OverviewTabProps {
+  realRows?: LedgerRow[]
+  isLoading?: boolean
+}
+
+function OverviewTab({ realRows, isLoading }: OverviewTabProps) {
   const [entryTab, setEntryTab] = useState<EntryTab>("All Entries")
+
+  const sourceRows = realRows ?? []
 
   const filterRows = (rows: LedgerRow[]) => {
     if (entryTab === "Debit") return rows.filter((r) => r.debit !== "-")
@@ -365,15 +184,21 @@ function OverviewTab({ book }: { book: LedgerBook }) {
     return rows
   }
 
+  const displayGroups = realRows
+    ? [{ name: "Transactions", rows: filterRows(sourceRows) }]
+    : []
+
   return (
     <div className="p-6 overflow-y-auto h-full pb-24">
-      {/* Warning banner */}
-      <div className="border-l-4 border-orange-400 bg-orange-50 px-4 py-3 mb-6">
-        <p className="text-sm font-semibold text-gray-800">Ledger Summary</p>
-        <p className="text-xs text-gray-600 mt-0.5">
-          Missing Bank statement from June 2025, July 2025 to fully verify the entries
-        </p>
-      </div>
+      {/* Status banner */}
+      {!realRows && !isLoading && (
+        <div className="border-l-4 border-orange-400 bg-orange-50 px-4 py-3 mb-6">
+          <p className="text-sm font-semibold text-gray-800">No general ledger data</p>
+          <p className="text-xs text-gray-600 mt-0.5">
+            Upload a general ledger file to get started, or send documents via chat for AI extraction.
+          </p>
+        </div>
+      )}
 
       {/* Entry filter tabs */}
       <div className="flex items-center gap-1 mb-6 flex-wrap">
@@ -398,40 +223,65 @@ function OverviewTab({ book }: { book: LedgerBook }) {
         </button>
       </div>
 
-      {/* Account groups */}
-      <div className="space-y-8">
-        {book.groups.map((group) => (
-          <div key={group.name}>
-            <div className="flex items-center gap-2 mb-3">
-              <LayoutGrid className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-semibold text-gray-700">{group.name}</span>
+      {/* Loading state */}
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2].map((i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {displayGroups.map((group) => (
+            <div key={group.name}>
+              <div className="flex items-center gap-2 mb-3">
+                <LayoutGrid className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-semibold text-gray-700">{group.name}</span>
+              </div>
+              <LedgerTable rows={group.rows} />
+              <button className="text-sm text-gray-500 hover:text-gray-700 mt-2 ml-1 transition-colors">
+                + New Entry
+              </button>
             </div>
-            <LedgerTable rows={filterRows(group.rows)} />
-            <button className="text-sm text-gray-500 hover:text-gray-700 mt-2 ml-1 transition-colors">
-              + New Entry
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Tasks tab (document list) ─────────────────────────────────────────────
 
-function TasksTab({ onSelectTask }: { onSelectTask: (index: number) => void }) {
+const EXTRACTION_STATUS_COLOURS: Record<Document["extractionStatus"], string> = {
+  PENDING: "bg-yellow-50 text-yellow-700",
+  PROCESSING: "bg-blue-50 text-blue-700",
+  COMPLETED: "bg-green-50 text-green-700",
+  FAILED: "bg-red-50 text-red-700",
+}
+
+const DOCUMENT_STATUS_COLOURS: Record<Document["documentStatus"], string> = {
+  DRAFT: "bg-gray-100 text-gray-600",
+  UNDER_REVIEW: "bg-yellow-50 text-yellow-700",
+  APPROVED: "bg-green-50 text-green-700",
+}
+
+interface TasksTabProps {
+  documents: Document[]
+  isLoading?: boolean
+}
+
+function TasksTab({ documents, isLoading }: TasksTabProps) {
+  const router = useRouter()
   const [taskTab, setTaskTab] = useState<TaskTab>("Activity")
 
-  const filteredTasks =
+  const filteredDocs =
     taskTab === "Debit"
-      ? MOCK_TASKS.filter((t) => t.type === "Expenses")
+      ? documents.filter((d) => d.extractionStatus === "COMPLETED")
       : taskTab === "Credit"
-      ? MOCK_TASKS.filter((t) => t.type === "Assets")
-      : MOCK_TASKS
+      ? documents.filter((d) => d.documentStatus === "APPROVED")
+      : documents
 
   return (
     <div className="p-6 overflow-y-auto h-full pb-24">
-      <h3 className="text-base font-semibold text-gray-800 mb-4">Document scanned 20 Feb 2026</h3>
+      <h3 className="text-base font-semibold text-gray-800 mb-4">Documents</h3>
 
       {/* Task sub-tabs */}
       <div className="flex gap-1 mb-5">
@@ -452,79 +302,186 @@ function TasksTab({ onSelectTask }: { onSelectTask: (index: number) => void }) {
         ))}
       </div>
 
-      <p className="text-xs font-medium text-gray-500 mb-3">
-        {filteredTasks.length} document{filteredTasks.length !== 1 ? "s" : ""} processed
-      </p>
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+        </div>
+      ) : filteredDocs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <InboxIcon className="h-10 w-10 text-gray-300 mb-3" />
+          <p className="text-sm font-medium text-gray-700">No documents processed yet</p>
+          <p className="text-xs text-gray-400 mt-1">Upload documents to get started</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs font-medium text-gray-500 mb-3">
+            {filteredDocs.length} document{filteredDocs.length !== 1 ? "s" : ""} processed
+          </p>
 
-      {/* Document task list */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50/60">
-              <ColHeader icon={<Receipt className="h-3.5 w-3.5" />} label="Document" />
-              <ColHeader icon={<Tag className="h-3.5 w-3.5" />} label="Type" />
-              <ColHeader icon={<Calendar className="h-3.5 w-3.5" />} label="Date" />
-              <ColHeader icon={<FileText className="h-3.5 w-3.5" />} label="Doc Type" />
-              <ColHeader icon={<Hash className="h-3.5 w-3.5" />} label="Amount" align="right" />
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTasks.map((task) => {
-              const globalIndex = MOCK_TASKS.findIndex((t) => t.id === task.id)
-              return (
-                <tr
-                  key={task.id}
-                  onClick={() => onSelectTask(globalIndex)}
-                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors group"
-                >
-                  <td className="py-2.5 px-3">
-                    <span className="text-gray-800 text-sm font-medium group-hover:text-[#1a2744] transition-colors">
-                      {task.title}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span className="bg-gray-100 text-gray-700 rounded px-2 py-0.5 text-xs">
-                      {task.type}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-xs text-gray-500 tabular-nums">{task.date}</td>
-                  <td className="py-2.5 px-3">
-                    <span className="bg-gray-100 text-gray-700 rounded px-2 py-0.5 text-xs">
-                      {task.docType}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-xs tabular-nums font-medium text-gray-700">
-                    {task.amount}
-                  </td>
+          {/* Document list */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50/60">
+                  <ColHeader icon={<Receipt className="h-3.5 w-3.5" />} label="Document" />
+                  <ColHeader icon={<Tag className="h-3.5 w-3.5" />} label="Extraction" />
+                  <ColHeader icon={<Calendar className="h-3.5 w-3.5" />} label="Date" />
+                  <ColHeader icon={<FileText className="h-3.5 w-3.5" />} label="Status" />
+                  <ColHeader icon={<Hash className="h-3.5 w-3.5" />} label="Amount" align="right" />
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {filteredDocs.map((doc) => (
+                  <tr
+                    key={doc.id}
+                    onClick={() => router.push(`/documents/${doc.id}`)}
+                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors group"
+                  >
+                    <td className="py-2.5 px-3">
+                      <span className="text-gray-800 text-sm font-medium group-hover:text-[#1a2744] transition-colors">
+                        {doc.file?.name ?? "Document"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={cn(
+                          "rounded px-2 py-0.5 text-xs font-medium",
+                          EXTRACTION_STATUS_COLOURS[doc.extractionStatus]
+                        )}
+                      >
+                        {doc.extractionStatus}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-gray-500 tabular-nums">
+                      {new Date(doc.createdAt).toLocaleDateString("en-MY")}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={cn(
+                          "rounded px-2 py-0.5 text-xs font-medium",
+                          DOCUMENT_STATUS_COLOURS[doc.documentStatus]
+                        )}
+                      >
+                        {doc.documentStatus.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right text-xs tabular-nums font-medium text-gray-500">
+                      N/A
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-      <button className="text-sm text-gray-500 hover:text-gray-700 mt-3 transition-colors flex items-center gap-1.5">
-        <Plus className="h-3.5 w-3.5" />
-        New entry
-      </button>
+          <button className="text-sm text-gray-500 hover:text-gray-700 mt-3 transition-colors flex items-center gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            New entry
+          </button>
 
-      <div className="flex gap-8 text-sm font-medium text-gray-700 border-t border-gray-200 pt-4 mt-4">
-        <span>
-          Total Documents:{" "}
-          <span className="text-gray-900">{filteredTasks.length}</span>
-        </span>
-        <span>
-          Total Amount:{" "}
-          <span className="text-gray-900">
-            RM{" "}
-            {filteredTasks
-              .reduce((sum, t) => {
-                const num = parseFloat(t.amount.replace(/[^0-9.]/g, ""))
-                return sum + (isNaN(num) ? 0 : num)
-              }, 0)
-              .toLocaleString("en-MY", { minimumFractionDigits: 2 })}
-          </span>
-        </span>
+          <div className="flex gap-8 text-sm font-medium text-gray-700 border-t border-gray-200 pt-4 mt-4">
+            <span>
+              Total Documents:{" "}
+              <span className="text-gray-900">{filteredDocs.length}</span>
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── GL Upload modal ───────────────────────────────────────────────────────
+
+function GLUploadModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  const [fiscalYear, setFiscalYear] = useState(new Date().getFullYear())
+  const [stagedFile, setStagedFile] = useState<File | null>(null)
+  const uploadGL = useUploadGL()
+
+  const onDrop = useCallback((accepted: File[]) => {
+    if (accepted[0]) setStagedFile(accepted[0])
+  }, [])
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: false,
+    accept: {
+      "application/vnd.ms-excel": [],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [],
+      "text/csv": [],
+    },
+  })
+
+  const handleUpload = async () => {
+    if (!stagedFile) return
+    try {
+      await uploadGL.mutateAsync({ file: stagedFile, fiscalYear })
+      toast.success("General ledger uploaded successfully. AI is processing…")
+      setStagedFile(null)
+      onClose()
+    } catch {
+      toast.error("Failed to upload general ledger. Please try again.")
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Upload General Ledger</h2>
+        <p className="text-sm text-gray-500 mb-4">Accepts Excel (.xlsx, .xls) or CSV files</p>
+
+        <div className="mb-4">
+          <label className="text-xs font-medium text-gray-500 mb-1 block">Fiscal Year</label>
+          <input
+            type="number"
+            value={fiscalYear}
+            onChange={(e) => setFiscalYear(Number(e.target.value))}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+        </div>
+
+        <div
+          {...getRootProps()}
+          className={cn(
+            "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors mb-4",
+            isDragActive ? "border-gray-900 bg-gray-50" : "border-gray-200 hover:border-gray-400"
+          )}
+        >
+          <input {...getInputProps()} />
+          {stagedFile ? (
+            <div className="flex items-center gap-2 justify-center text-sm text-gray-700">
+              <FileText className="h-4 w-4" />
+              {stagedFile.name}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              {isDragActive ? "Drop file here" : "Drag & drop or click to browse"}
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleUpload}
+            disabled={!stagedFile || uploadGL.isPending}
+          >
+            {uploadGL.isPending ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Uploading…</>
+            ) : "Upload"}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -532,67 +489,104 @@ function TasksTab({ onSelectTask }: { onSelectTask: (index: number) => void }) {
 
 // ─── Main LedgerPage ───────────────────────────────────────────────────────
 
-interface LedgerPageProps {
-  id: string
-}
+export function LedgerPage() {
+  const { user } = useAuth()
+  // companyId is scoped by JWT on the backend; kept here for future use
+  const _companyId = user?.companyId ?? ""
 
-export function LedgerPage({ id }: LedgerPageProps) {
   const [mainTab, setMainTab] = useState<MainTab>("Overview")
-  const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null)
-  const [tasks, setTasks] = useState<TaskData[]>(MOCK_TASKS)
-  const [drafts, setDrafts] = useState<Record<string, TaskDraft>>({})
-  const book = BOOKS_DATA[id] ?? { name: "Ledger", groups: [] }
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
 
-  const handleDraftChange = (taskId: string, draft: TaskDraft) => {
-    setDrafts((prev) => ({ ...prev, [taskId]: draft }))
+  const { data: glStatus } = useGLStatus()
+  const { data: glTransactions, isLoading: glLoading } = useGLTransactions({ limit: 100 })
+  const { data: documents = [] } = useDocuments()
+  const exportGL = useExportGL()
+
+  // Convert real GL transactions to LedgerRow format for the table
+  const realRows: LedgerRow[] | undefined = glTransactions?.items.map((tx) => ({
+    date: new Date(tx.date).toLocaleDateString("en-MY"),
+    account: tx.account,
+    description: tx.description,
+    debit: tx.debit > 0 ? tx.debit.toLocaleString("en-MY", { minimumFractionDigits: 2 }) : "-",
+    credit: tx.credit > 0 ? tx.credit.toLocaleString("en-MY", { minimumFractionDigits: 2 }) : "-",
+    balance: tx.balance.toLocaleString("en-MY", { minimumFractionDigits: 2 }),
+  }))
+
+  const pageTitle = glStatus?.initialized
+    ? `General Ledger ${glStatus.fiscalYear ?? ""}`
+    : "General Ledger"
+
+  const handleExport = async () => {
+    try {
+      const blob = await exportGL.mutateAsync(undefined)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `general-ledger-${new Date().getFullYear()}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error("Failed to export general ledger")
+    }
   }
-
-  const handleSelectTask = (index: number) => {
-    setSelectedTaskIndex(index)
-  }
-
-  const handleCloseTask = () => {
-    setSelectedTaskIndex(null)
-  }
-
-  const handleDeleteTask = (taskId: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId))
-    setSelectedTaskIndex(null)
-  }
-
-  const handleVerifyTask = (taskId: string, data: TaskData) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...data } : t)))
-    setSelectedTaskIndex(null)
-  }
-
-  const handlePrevTask = () => {
-    setSelectedTaskIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev))
-  }
-
-  const handleNextTask = () => {
-    setSelectedTaskIndex((prev) =>
-      prev !== null && prev < tasks.length - 1 ? prev + 1 : prev
-    )
-  }
-
-  // When a task is selected, show the TaskDetailView full-screen
-  // (replaced by Sheet below — remove early return)
 
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-gray-900">{book.name}</h1>
+          <h1 className="text-xl font-semibold text-gray-900">{pageTitle}</h1>
           <button className="text-gray-400 hover:text-gray-600 transition-colors">
             <Pencil className="h-4 w-4" />
           </button>
         </div>
-        <button className="flex items-center gap-2 bg-[#03234B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#03234B]/90 transition-colors">
-          <CheckCircle className="h-4 w-4" />
-          Verify your book
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setUploadModalOpen(true)}
+            className="gap-1.5"
+          >
+            <Upload className="h-4 w-4" />
+            Upload GL
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={exportGL.isPending || !glStatus?.initialized}
+            className="gap-1.5"
+          >
+            {exportGL.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Export
+          </Button>
+          <button className="flex items-center gap-2 bg-[#03234B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#03234B]/90 transition-colors">
+            <CheckCircle className="h-4 w-4" />
+            Verify your book
+          </button>
+        </div>
       </div>
+
+      {/* GL status pill */}
+      {glStatus && (
+        <div className="px-6 py-2 border-b border-gray-100 flex items-center gap-3 text-xs text-gray-500">
+          {glStatus.initialized ? (
+            <>
+              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+              <span>GL initialised · Fiscal year {glStatus.fiscalYear} · {glStatus.transactionCount ?? 0} transactions</span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-3.5 w-3.5 text-orange-400" />
+              <span>No general ledger uploaded yet</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Main tab navigation */}
       <div className="flex gap-1 px-6 py-3 border-b border-gray-100 flex-shrink-0">
@@ -615,9 +609,12 @@ export function LedgerPage({ id }: LedgerPageProps) {
       {/* Tab content */}
       <div className="flex-1 overflow-hidden relative">
         {mainTab === "Overview" ? (
-          <OverviewTab book={book} />
+          <OverviewTab
+            realRows={realRows}
+            isLoading={glLoading}
+          />
         ) : (
-          <TasksTab onSelectTask={handleSelectTask} />
+          <TasksTab documents={documents} />
         )}
       </div>
 
@@ -629,33 +626,8 @@ export function LedgerPage({ id }: LedgerPageProps) {
         </button>
       </div>
 
-      {/* Task detail — slides up as a large bottom sheet */}
-      <Sheet
-        open={selectedTaskIndex !== null}
-        onOpenChange={(open) => { if (!open) handleCloseTask() }}
-      >
-        <SheetContent
-          side="bottom"
-          className="h-[92vh] p-0 rounded-t-2xl overflow-hidden flex flex-col [&>button]:hidden"
-        >
-          {selectedTaskIndex !== null && tasks[selectedTaskIndex] && (
-            <TaskDetailView
-              key={tasks[selectedTaskIndex].id}
-              task={tasks[selectedTaskIndex]}
-              taskIndex={selectedTaskIndex}
-              totalTasks={tasks.length}
-              ledgerTitle={book.name}
-              initialDraft={drafts[tasks[selectedTaskIndex].id]}
-              onDraftChange={handleDraftChange}
-              onClose={handleCloseTask}
-              onDelete={handleDeleteTask}
-              onVerify={handleVerifyTask}
-              onPrev={handlePrevTask}
-              onNext={handleNextTask}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
+      {/* GL upload modal */}
+      <GLUploadModal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} />
     </div>
   )
 }

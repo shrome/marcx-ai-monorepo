@@ -70,13 +70,10 @@ export function useRegisterCompany() {
     mutationFn: async (data: CreateCompanyDto) => {
       return await backend.company.register(data)
     },
-    onSuccess: (data) => {
-      // Update current user cache with new companyId
-      queryClient.setQueryData(authKeys.currentUser(), { user: data.user })
-      // Invalidate companies list
-      queryClient.invalidateQueries({ queryKey: companyKeys.lists() })
-      // Invalidate current user to refetch with company data
+    onSuccess: () => {
+      // Invalidate and refetch current user so companyId is fresh from the DB
       queryClient.invalidateQueries({ queryKey: authKeys.currentUser() })
+      queryClient.invalidateQueries({ queryKey: companyKeys.lists() })
     },
   })
 }

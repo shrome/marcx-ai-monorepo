@@ -22,9 +22,22 @@ export class AuthService {
     private emailService: EmailService,
   ) {}
 
-  private async generateTokenPair(userId: string, email: string, role: string) {
-    // Generate short-lived access token (15 minutes)
-    const accessPayload: JwtPayload = { sub: userId, email, role };
+  /** Returns a fixed OTP in non-production environments when TEST_FIXED_OTP is set. */
+  private generateOtp(): string {
+    if (process.env.NODE_ENV !== 'production' && process.env.TEST_FIXED_OTP) {
+      return process.env.TEST_FIXED_OTP;
+    }
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+
+  private async generateTokenPair(
+    userId: string,
+    email: string,
+    role: string,
+    companyId?: string | null,
+  ) {
+    const accessPayload: JwtPayload = { sub: userId, email, role, companyId };
     const accessToken = this.jwtService.sign(accessPayload, {
       expiresIn: '15m',
     });
@@ -106,7 +119,7 @@ export class AuthService {
       .returning();
 
     // Generate 6-digit OTP for email verification
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = this.generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     const tokenHash = await bcrypt.hash(code, 10);
 
@@ -165,7 +178,7 @@ export class AuthService {
     }
 
     // Generate 6-digit OTP for login
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = this.generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     const tokenHash = await bcrypt.hash(code, 10);
 
@@ -208,7 +221,7 @@ export class AuthService {
     }
 
     // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = this.generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     const tokenHash = await bcrypt.hash(code, 10);
 
@@ -303,6 +316,7 @@ export class AuthService {
       userCredential.user.id,
       userCredential.user.email,
       membership?.role ?? 'VIEWER',
+      membership?.companyId,
     );
 
     return {
@@ -381,6 +395,7 @@ export class AuthService {
       userCredential.user.id,
       userCredential.user.email,
       membership?.role ?? 'VIEWER',
+      membership?.companyId,
     );
 
     return {

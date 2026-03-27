@@ -1,135 +1,174 @@
-# Turborepo starter
+# marcx-ai — AI-Powered Accounting Platform
 
-This Turborepo starter is maintained by the Turborepo core team.
+A full-stack monorepo for an AI-powered accounting platform. Users interact via chat sessions, upload invoices and financial documents, and the system automatically extracts, classifies, and compiles them into a general ledger.
 
-## Using this example
+---
 
-Run the following command:
+## Tech Stack
 
-```sh
-npx create-turbo@latest
-```
+| Layer | Technology |
+|-------|-----------|
+| Monorepo | Turborepo + pnpm |
+| Frontend | Next.js (App Router), Tailwind CSS, Shadcn UI, React Query |
+| Backend | NestJS (modular architecture) |
+| Database | PostgreSQL via Drizzle ORM (`@marcx/db` shared package) |
+| Storage | AWS S3 (presigned URLs) |
+| AI API | Django + LangGraph (external, under `/ai-api`) |
+| Auth | Email OTP (JWT + refresh tokens) |
 
-## What's inside?
+---
 
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+## Project Structure
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+marcx-ai-monorepo/
+├── apps/
+│   ├── backend/          # NestJS API server
+│   └── web/              # Next.js frontend
+├── packages/
+│   └── drizzle/          # @marcx/db — shared Drizzle ORM schema + client
+├── ai-api/               # Django/LangGraph AI service specs
+├── docs/
+│   └── checkpoints/      # Progress history — read before making changes
+├── scripts/
+│   └── test-db.sh        # Test database lifecycle (start/migrate/stop)
+├── docker-compose.yml
+└── IMPLEMENTATION_PLAN.md
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+---
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+## Getting Started
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+### Prerequisites
 
-### Develop
+- Node.js 20+
+- pnpm 9+
+- Docker (for PostgreSQL + Redis)
 
-To develop all apps and packages, run the following command:
+### 1. Install dependencies
 
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+```bash
+pnpm install
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+### 2. Set up environment
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+```bash
+# Root — backend uses this
+cp .env.example .env       # fill in DB, JWT, AWS, Resend keys
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+# Frontend
+cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-### Remote Caching
+### 3. Start infrastructure
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+```bash
+docker-compose up -d       # starts postgres + redis + pgbouncer
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+### 4. Build the DB package (required before running backend)
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+```bash
+pnpm --filter @marcx/db build
 ```
 
-## Useful Links
+### 5. Run database migrations
 
-Learn more about the power of Turborepo:
+```bash
+cd packages/drizzle && pnpm db:migrate
+```
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+### 6. Start dev servers
+
+```bash
+# Backend (http://localhost:4000)
+cd apps/backend && pnpm dev
+
+# Frontend (http://localhost:3000)
+cd apps/web && pnpm dev
+```
+
+Or run everything at once from the root:
+
+```bash
+pnpm dev
+```
+
+---
+
+## API Documentation
+
+Start the backend, then open:
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:4000/api/docs` | **Scalar UI** — interactive API explorer |
+| `http://localhost:4000/api/docs/swagger` | Raw OpenAPI JSON + Swagger UI |
+
+---
+
+## Testing
+
+### Backend E2E Tests
+
+```bash
+# 1. Start the test database
+bash scripts/test-db.sh start
+
+# 2. Run migrations against test DB
+bash scripts/test-db.sh migrate
+
+# 3. Run all 73 E2E tests
+cd apps/backend && pnpm test:e2e
+```
+
+The test suite uses an isolated PostgreSQL container (port 15433). Email and S3 are fully mocked — no real credentials needed.
+
+### Frontend E2E Tests (Playwright)
+
+Requires both servers running with `TEST_FIXED_OTP=000000` set on the backend:
+
+```bash
+# Install browser (first time only)
+cd apps/web && npx playwright install chromium
+
+# Run tests
+cd apps/web && pnpm test:e2e
+
+# Open interactive UI
+cd apps/web && pnpm test:e2e:ui
+```
+
+---
+
+## Key Modules (Backend)
+
+| Module | Description |
+|--------|-------------|
+| `auth` | Email OTP registration + login, JWT + refresh tokens |
+| `user` | Profile management |
+| `company` | Multi-tenant company setup |
+| `company-member` | Role-based access (OWNER / ADMIN / ACCOUNTANT / VIEWER) |
+| `document` | File upload to S3, AI extraction pipeline |
+| `session` | Chat sessions |
+| `chat` | AI chat messages (proxied to AI API) |
+| `billing` | Company credits + transaction history |
+| `activity-log` | Audit trail |
+| `ai-proxy` | Forwards requests to the external AI API |
+
+---
+
+## Progress & Handoff
+
+> **Always read this before making changes.**
+
+This project uses a checkpoint system. Before writing any code, read:
+
+1. `docs/checkpoints/index.md` — summary of all progress
+2. The latest checkpoint file (highest number)
+3. `IMPLEMENTATION_PLAN.md` — full phase plan and current status
+
+See `.github/copilot-instructions.md` for the full rules.
+

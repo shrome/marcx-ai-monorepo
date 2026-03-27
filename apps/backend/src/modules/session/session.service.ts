@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateSessionDto, UpdateSessionDto } from './dto/session.dto';
+import { CreateSessionDto, UpdateSessionDto, CreateChatSessionDto } from './dto/session.dto';
 
 import { db, eq, and } from '@marcx/db';
 import { session, user } from '@marcx/db/schema';
 
 @Injectable()
 export class SessionService {
-  async createChatSession(data: { title?: string } = {}, userId: string) {
+  async createChatSession(data: CreateChatSessionDto, userId: string) {
     // Get user with membership information
     const foundUser = await db.query.user.findFirst({
       where: eq(user.id, userId),
@@ -34,6 +34,7 @@ export class SessionService {
         creatorId: userId,
         title: sessionTitle,
         status: 'open',
+        fiscalYear: data.fiscalYear,
       })
       .returning();
 
@@ -41,13 +42,28 @@ export class SessionService {
   }
 
   async create(createSessionDto: CreateSessionDto, userId: string) {
+    // Resolve companyId from user membership if not provided
+    let companyId = createSessionDto.companyId;
+
+    if (!companyId) {
+      const foundUser = await db.query.user.findFirst({
+        where: eq(user.id, userId),
+        with: { memberships: true },
+      });
+
+      const membership = foundUser?.memberships?.[0];
+      if (!membership) throw new NotFoundException('User has no associated company');
+      companyId = membership.companyId;
+    }
+
     const [newSession] = await db
       .insert(session)
       .values({
-        companyId: createSessionDto.companyId || crypto.randomUUID(),
+        companyId,
         creatorId: userId,
         title: createSessionDto.title,
         description: createSessionDto.description,
+        fiscalYear: createSessionDto.fiscalYear,
         status: 'open',
       })
       .returning();

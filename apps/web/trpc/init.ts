@@ -1,11 +1,8 @@
 import { initTRPC, TRPCError } from "@trpc/server"
 import superjson from "superjson"
-import { mockStore } from "@/lib/db/mock-store"
 
 export const createTRPCContext = async () => {
-  return {
-    user: mockStore.currentUser,
-  }
+  return { user: null as null | { id: string; email: string } }
 }
 
 export type Context = Awaited<ReturnType<typeof createTRPCContext>>
@@ -16,6 +13,7 @@ const t = initTRPC.context<Context>().create({
 
 export const router = t.router
 export const publicProcedure = t.procedure
+export const createCallerFactory = t.createCallerFactory
 
 // Protected procedure that requires authentication
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {

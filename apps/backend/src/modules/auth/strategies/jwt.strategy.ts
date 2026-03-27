@@ -9,6 +9,7 @@ export interface JwtPayload {
   sub: string; // user id
   email: string;
   role: string;
+  companyId?: string | null;
 }
 
 interface RequestWithCookies {
@@ -50,6 +51,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.sub,
       email: payload.email,
       role: payload.role,
+      companyId: payload.companyId ?? null,
     };
   }
 }

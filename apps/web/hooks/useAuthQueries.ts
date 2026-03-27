@@ -57,13 +57,9 @@ export function useLogin() {
     mutationFn: async (data: LoginDto) => {
       return await backend.auth.login(data)
     },
-    onSuccess: (data) => {
-      // Update the current user cache
-      queryClient.setQueryData(authKeys.currentUser(), data)
-      // Store user in localStorage for demo
-      if (typeof window !== "undefined") {
-        localStorage.setItem("demo_user", JSON.stringify(data.user))
-      }
+    onSuccess: () => {
+      // login only sends OTP — user data is returned after verifyLoginOtp
+      queryClient.invalidateQueries({ queryKey: authKeys.currentUser() })
     },
   })
 }
@@ -132,24 +128,26 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
-      return await backend.auth.logout()
+      try {
+        await backend.auth.logout()
+      } catch {
+        // Token may already be expired — still clear local state
+      }
     },
-    onSuccess: () => {
-      // Clear the current user cache
+    onSettled: () => {
       queryClient.setQueryData(authKeys.currentUser(), null)
-      // Invalidate all queries
-      queryClient.invalidateQueries({ queryKey: authKeys.all })
+      queryClient.clear()
     },
   })
 }
 
 /**
- * Hook to refresh access token
+ * Hook to refresh access token (handled automatically by the backend client interceptor)
  */
 export function useRefreshToken() {
   return useMutation({
     mutationFn: async () => {
-      return await backend.auth.refreshAccessToken()
+      // Token refresh is managed internally by the Backend base class interceptor
     },
   })
 }

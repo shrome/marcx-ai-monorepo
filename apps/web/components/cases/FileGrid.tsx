@@ -24,7 +24,18 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import type { File as FileType, Folder as FolderType } from "@marcx/db"
+import type { file } from "@marcx/db/schema"
+
+type FileType = typeof file.$inferSelect
+
+// Local stub — Folder was never added to the DB schema
+interface FolderType {
+  id: string
+  name: string
+  parentId: string | null
+  userId: string
+  createdAt: Date
+}
 
 interface FileGridProps {
   files: FileType[]
@@ -110,7 +121,7 @@ export function FileGrid({ files, folders, onOpenFolder, onDeleteFile, onDeleteF
 
         {/* Files */}
         {files.map((file) => {
-          const Icon = getFileIcon(file.type)
+          const Icon = getFileIcon(file.mimeType)
           return (
             <div
               key={file.id}
@@ -145,7 +156,7 @@ export function FileGrid({ files, folders, onOpenFolder, onDeleteFile, onDeleteF
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {file.type.startsWith("image/") ? (
+              {file.mimeType.startsWith("image/") ? (
                 <div className="h-12 w-12 mb-2 rounded overflow-hidden">
                   <img src={file.url || "/placeholder.svg"} alt={file.name} className="h-full w-full object-cover" />
                 </div>

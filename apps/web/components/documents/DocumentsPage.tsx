@@ -2,16 +2,34 @@
 
 import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
-import { Upload, FileText, ImageIcon, FileArchive, X, CheckCircle2, Loader2, FolderOpen } from "lucide-react"
+import {
+  Upload,
+  FileText,
+  ImageIcon,
+  FileArchive,
+  X,
+  CheckCircle2,
+  Loader2,
+  FolderOpen,
+  AlertCircle,
+  Clock,
+  Eye,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { useAuth } from "@/components/AuthContext"
+import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/useDocumentQueries"
+import { useTriggerOcr } from "@/hooks/useAiQueries"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { Document } from "@/lib/backend"
 
 interface StagedFile {
   id: string
   file: File
   status: "pending" | "uploading" | "done" | "error"
   progress: number
-  url?: string
 }
 
 function formatBytes(bytes: number) {
@@ -26,7 +44,41 @@ function FileTypeIcon({ type, className }: { type: string; className?: string })
   return <FileText className={className} />
 }
 
+function ExtractionStatusBadge({ status }: { status: Document["extractionStatus"] }) {
+  const map = {
+    PENDING: { label: "Pending", variant: "secondary" as const, icon: <Clock className="h-3 w-3" /> },
+    PROCESSING: { label: "Processing", variant: "secondary" as const, icon: <Loader2 className="h-3 w-3 animate-spin" /> },
+    COMPLETED: { label: "Extracted", variant: "default" as const, icon: <CheckCircle2 className="h-3 w-3" /> },
+    FAILED: { label: "Failed", variant: "destructive" as const, icon: <AlertCircle className="h-3 w-3" /> },
+  }
+  const { label, variant, icon } = map[status]
+  return (
+    <Badge variant={variant} className="gap-1 text-xs">
+      {icon}
+      {label}
+    </Badge>
+  )
+}
+
+function DocumentStatusBadge({ status }: { status: Document["documentStatus"] }) {
+  const map = {
+    DRAFT: { label: "Draft", variant: "outline" as const },
+    UNDER_REVIEW: { label: "Under Review", variant: "secondary" as const },
+    APPROVED: { label: "Approved", variant: "default" as const },
+  }
+  const { label, variant } = map[status]
+  return <Badge variant={variant} className="text-xs">{label}</Badge>
+}
+
 export function DocumentsPage() {
+  const { user } = useAuth()
+  const companyId = user?.companyId ?? ""
+
+  const { data: documents = [], isLoading: docsLoading } = useDocuments()
+  const uploadDocument = useUploadDocument()
+  const deleteDocument = useDeleteDocument()
+  const triggerOcr = useTriggerOcr()
+
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
 
@@ -68,33 +120,24 @@ export function DocumentsPage() {
 
   const uploadSingle = async (staged: StagedFile): Promise<void> => {
     setStagedFiles((prev) =>
-      prev.map((f) => (f.id === staged.id ? { ...f, status: "uploading", progress: 0 } : f))
+      prev.map((f) => (f.id === staged.id ? { ...f, status: "uploading", progress: 50 } : f))
     )
 
-    const progressInterval = setInterval(() => {
-      setStagedFiles((prev) =>
-        prev.map((f) =>
-          f.id === staged.id && f.status === "uploading"
-            ? { ...f, progress: Math.min(f.progress + 25, 90) }
-            : f
-        )
-      )
-    }, 200)
-
     try {
-      const formData = new FormData()
-      formData.append("file", staged.file)
-      const response = await fetch("/api/upload", { method: "POST", body: formData })
-      clearInterval(progressInterval)
-      if (!response.ok) throw new Error("Upload failed")
-      const blob = await response.json()
+      const doc = await uploadDocument.mutateAsync({
+        file: staged.file,
+        companyId,
+      })
+
       setStagedFiles((prev) =>
-        prev.map((f) =>
-          f.id === staged.id ? { ...f, status: "done", progress: 100, url: blob.url } : f
-        )
+        prev.map((f) => (f.id === staged.id ? { ...f, status: "done", progress: 100 } : f))
       )
+
+      // Auto-trigger OCR extraction after upload
+      if (doc.id) {
+        triggerOcr.mutate(doc.id)
+      }
     } catch {
-      clearInterval(progressInterval)
       setStagedFiles((prev) =>
         prev.map((f) => (f.id === staged.id ? { ...f, status: "error", progress: 0 } : f))
       )
@@ -103,6 +146,10 @@ export function DocumentsPage() {
   }
 
   const handleUpload = async () => {
+    if (!companyId) {
+      toast.error("No company associated with your account")
+      return
+    }
     const pending = stagedFiles.filter((f) => f.status === "pending" || f.status === "error")
     if (pending.length === 0) return
     setIsUploading(true)
@@ -111,18 +158,35 @@ export function DocumentsPage() {
     toast.success(`${pending.length} file${pending.length > 1 ? "s" : ""} uploaded successfully`)
   }
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDocument.mutateAsync(id)
+      toast.success("Document deleted")
+    } catch {
+      toast.error("Failed to delete document")
+    }
+  }
+
+  const handleTriggerExtraction = async (docId: string) => {
+    try {
+      await triggerOcr.mutateAsync(docId)
+      toast.success("AI extraction triggered")
+    } catch {
+      toast.error("Failed to trigger extraction")
+    }
+  }
+
   const pendingCount = stagedFiles.filter((f) => f.status === "pending" || f.status === "error").length
-  const doneFiles = stagedFiles.filter((f) => f.status === "done")
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-1">
           <FolderOpen className="h-5 w-5 text-gray-500" />
           <h1 className="text-xl font-semibold text-gray-900">Documents</h1>
         </div>
-        <p className="text-sm text-gray-500 ml-8">Upload and manage your files</p>
+        <p className="text-sm text-gray-500 ml-8">Upload files for AI extraction and general ledger processing</p>
       </div>
 
       {/* Drop zone */}
@@ -156,7 +220,7 @@ export function DocumentsPage() {
       {stagedFiles.length > 0 && (
         <div className="mt-6 space-y-2">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Files ({stagedFiles.length})
+            Staged ({stagedFiles.length})
           </p>
           {stagedFiles.map((f) => (
             <div
@@ -169,19 +233,8 @@ export function DocumentsPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{f.file.name}</p>
                 <p className="text-xs text-gray-400">{formatBytes(f.file.size)}</p>
-                {f.status === "uploading" && (
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gray-900 rounded-full transition-all duration-300"
-                        style={{ width: `${f.progress}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">{f.progress}%</span>
-                  </div>
-                )}
               </div>
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 flex items-center gap-2">
                 {f.status === "pending" && (
                   <button
                     onClick={() => removeFile(f.id)}
@@ -193,62 +246,105 @@ export function DocumentsPage() {
                 )}
                 {f.status === "uploading" && <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />}
                 {f.status === "done" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                {f.status === "error" && (
-                  <span className="text-xs text-red-500 font-medium">Failed</span>
-                )}
+                {f.status === "error" && <span className="text-xs text-red-500 font-medium">Failed</span>}
               </div>
             </div>
           ))}
-        </div>
-      )}
 
-      {/* Submit button */}
-      {pendingCount > 0 && (
-        <div className="mt-6 flex items-center gap-3">
-          <button
-            onClick={handleUpload}
-            disabled={isUploading}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Uploading…
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4" />
-                Upload {pendingCount} file{pendingCount > 1 ? "s" : ""}
-              </>
-            )}
-          </button>
-          {!isUploading && (
-            <button
-              onClick={() => setStagedFiles((prev) => prev.filter((f) => f.status === "done"))}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              Clear pending
-            </button>
+          {pendingCount > 0 && (
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={handleUpload}
+                disabled={isUploading}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Uploading…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Upload {pendingCount} file{pendingCount > 1 ? "s" : ""}
+                  </>
+                )}
+              </button>
+              {!isUploading && (
+                <button
+                  onClick={() => setStagedFiles((prev) => prev.filter((f) => f.status === "done"))}
+                  className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Clear pending
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {/* Empty state */}
-      {stagedFiles.length === 0 && (
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-400">No files selected yet</p>
-        </div>
-      )}
+      {/* Documents list */}
+      <div className="mt-10">
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+          All Documents {documents.length > 0 && `(${documents.length})`}
+        </p>
 
-      {/* Done summary */}
-      {doneFiles.length > 0 && pendingCount === 0 && (
-        <div className="mt-6 p-4 rounded-xl bg-green-50 border border-green-100 flex items-center gap-3">
-          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-          <p className="text-sm text-green-700 font-medium">
-            {doneFiles.length} file{doneFiles.length > 1 ? "s" : ""} uploaded successfully
-          </p>
-        </div>
-      )}
+        {docsLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 rounded-xl" />
+            ))}
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <FolderOpen className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            <p className="text-sm">No documents yet. Upload your first file above.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors"
+              >
+                <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-gray-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {doc.file?.name ?? doc.id}
+                  </p>
+                  {doc.file?.size && (
+                    <p className="text-xs text-gray-400">{formatBytes(doc.file.size)}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <ExtractionStatusBadge status={doc.extractionStatus} />
+                  <DocumentStatusBadge status={doc.documentStatus} />
+                  {doc.extractionStatus === "FAILED" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleTriggerExtraction(doc.id)}
+                      className="text-xs h-7"
+                    >
+                      Retry
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-gray-400 hover:text-destructive"
+                    onClick={() => handleDelete(doc.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

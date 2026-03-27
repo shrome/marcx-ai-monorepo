@@ -35,7 +35,17 @@ export { CaseClient } from './case';
 export { ChatClient } from './chat';
 export { CompanyClient } from './company';
 export { SessionClient } from './session';
+export { DocumentClient } from './document';
+export { BillingClient } from './billing';
+export { ActivityClient } from './activity';
+export { MemberClient } from './member';
+export { AiClient } from './ai';
 export * from './types';
+export type { Document, UpdateDocumentDraftDto, ListDocumentsQuery } from './document';
+export type { CompanyCredit, CreditTransaction, TopUpCreditDto, ListTransactionsQuery } from './billing';
+export type { ActivityLog, ListActivityQuery } from './activity';
+export type { CompanyMember, MemberRole, InviteMemberDto, UpdateMemberRoleDto } from './member';
+export type { OcrPresignResponse, OcrJobStatus, GLStatus, GLTransaction, GLTransactionsResponse, Account, LlmUsage } from './ai';
 
 import { BackendConfig } from './types';
 import { AuthClient } from './auth';
@@ -44,6 +54,11 @@ import { CaseClient } from './case';
 import { ChatClient } from './chat';
 import { CompanyClient } from './company';
 import { SessionClient } from './session';
+import { DocumentClient } from './document';
+import { BillingClient } from './billing';
+import { ActivityClient } from './activity';
+import { MemberClient } from './member';
+import { AiClient } from './ai';
 
 /**
  * Unified Backend Client
@@ -56,15 +71,24 @@ export class BackendClient {
   public chat: ChatClient;
   public company: CompanyClient;
   public session: SessionClient;
+  public document: DocumentClient;
+  public billing: BillingClient;
+  public activity: ActivityClient;
+  public member: MemberClient;
+  public ai: AiClient;
 
   constructor(config: BackendConfig = {}) {
-    // All clients share the same configuration
     this.auth = new AuthClient(config);
     this.user = new UserClient(config);
     this.case = new CaseClient(config);
     this.chat = new ChatClient(config);
     this.company = new CompanyClient(config);
     this.session = new SessionClient(config);
+    this.document = new DocumentClient(config);
+    this.billing = new BillingClient(config);
+    this.activity = new ActivityClient(config);
+    this.member = new MemberClient(config);
+    this.ai = new AiClient(config);
   }
 }
 

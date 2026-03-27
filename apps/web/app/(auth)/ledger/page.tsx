@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation"
+import { LedgerPage } from "@/components/ledger/LedgerPage"
 
 export default function LedgerIndex() {
-  redirect("/ledger/book-1")
+  return <LedgerPage />
 }

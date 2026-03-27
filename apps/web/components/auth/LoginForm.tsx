@@ -2,48 +2,67 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useLogin, useVerifyLoginOtp, useCurrentUser } from "@/hooks/useAuthQueries"
-import { CompanyForm } from "./CompanyForm"
+import { useLogin, useVerifyLoginOtp, useCurrentUser, useSendOtp } from "@/hooks/useAuthQueries"
 import { toast } from "sonner"
 import { Loader2, Mail } from "lucide-react"
 import Link from "next/link"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 
+const RESEND_COOLDOWN = 60
+
 export function LoginForm() {
   const router = useRouter()
   const loginMutation = useLogin()
   const verifyOtpMutation = useVerifyLoginOtp()
+  const sendOtpMutation = useSendOtp()
   const { data: currentUser } = useCurrentUser()
 
   const [step, setStep] = useState<"email" | "verify">("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
+  const [cooldown, setCooldown] = useState(0)
 
-  // Redirect if already logged in AND has company
   useEffect(() => {
     if (currentUser?.user && currentUser.user.companyId) {
       router.push("/chat")
     } else if (currentUser?.user && !currentUser.user.companyId) {
-      router.push("/register/company");
+      router.push("/register/company")
     }
   }, [currentUser, router])
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [cooldown])
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       await loginMutation.mutateAsync({ email })
-      toast.success("OTP sent! Check console for demo code")
+      toast.success("OTP sent! Check your email.")
       setStep("verify")
+      setCooldown(RESEND_COOLDOWN)
     } catch (error: any) {
-      toast.error(error?.message || "Failed to send OTP")
+      toast.error(error?.message || "Failed to send OTP. Please try again.")
     }
   }
+
+  const handleResendOtp = useCallback(async () => {
+    try {
+      await sendOtpMutation.mutateAsync({ email })
+      toast.success("A new OTP has been sent to your email.")
+      setCooldown(RESEND_COOLDOWN)
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to resend OTP. Please try again.")
+    }
+  }, [email, sendOtpMutation])
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,15 +70,13 @@ export function LoginForm() {
     try {
       const result = await verifyOtpMutation.mutateAsync({ email, code: otp })
       toast.success("Welcome back!")
-      
-      // Check if user needs company setup
       if (result.requiresCompanySetup) {
         router.push("/register/company")
       } else {
         router.push("/chat")
       }
     } catch (error: any) {
-      toast.error(error?.message || "Invalid OTP")
+      toast.error(error?.message || "Invalid or expired OTP. Please try again.")
     }
   }
 
@@ -69,8 +86,10 @@ export function LoginForm() {
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Verify your email</CardTitle>
-          <CardDescription>We sent a verification code to {email}</CardDescription>
+          <CardTitle className="text-2xl">Check your email</CardTitle>
+          <CardDescription>
+            We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleVerifyOtp} className="space-y-4">
@@ -86,14 +105,28 @@ export function LoginForm() {
                 </InputOTPGroup>
               </InputOTP>
             </div>
-            <p className="text-center text-sm text-muted-foreground">Check browser console for demo OTP code</p>
             <Button type="submit" className="w-full" disabled={isLoading || otp.length !== 6}>
               {verifyOtpMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Verify & Sign In
             </Button>
-            <Button type="button" variant="ghost" className="w-full" onClick={() => setStep("email")}>
-              Use different email
-            </Button>
+            <div className="flex items-center justify-between text-sm">
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setStep("email"); setOtp("") }}>
+                Use different email
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResendOtp}
+                disabled={cooldown > 0 || sendOtpMutation.isPending}
+              >
+                {sendOtpMutation.isPending
+                  ? "Sending..."
+                  : cooldown > 0
+                  ? `Resend in ${cooldown}s`
+                  : "Resend OTP"}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

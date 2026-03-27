@@ -49,13 +49,6 @@ export class AuthClient extends Backend {
   }
 
   /**
-   * Refresh access token using the refresh token cookie
-   */
-  async refreshAccessToken(): Promise<{ message: string }> {
-    return this.post<{ message: string }>('/auth/refresh');
-  }
-
-  /**
    * Revoke the current refresh token
    * Cookies are cleared by the server
    */

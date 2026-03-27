@@ -15,15 +15,7 @@ import { useAuth } from "@/components/AuthContext"
 const navItems = [
   { label: "Ask PIO", href: "/chat", icon: MessageCircle },
   { label: "Documents", href: "/documents", icon: FolderOpen },
-  {
-    label: "Ledger",
-    href: "/ledger",
-    icon: BookOpen,
-    children: [
-      { label: "Ledger 1", href: "/ledger/book-1" },
-      { label: "General Ledger 2025", href: "/ledger/my-ledger-2025" },
-    ],
-  },
+  { label: "Ledger", href: "/ledger", icon: BookOpen },
 ]
 
 const bottomItems = [
@@ -47,33 +39,19 @@ export function AppSidebar() {
           const active = isActive(item.href)
 
           return (
-            <div key={item.href}>
-              <Link
-                href={item.children ? item.children[0].href : item.href}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all",
-                  active
-                    ? "bg-white shadow-sm text-gray-900 font-medium"
-                    : "text-gray-700 hover:bg-white/60"
-                )}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span>{item.label}</span>
-              </Link>
-              {item.children && active && (
-                <div className="ml-4 mt-0.5 space-y-0.5">
-                  {item.children.map((child) => (
-                    <Link
-                      key={child.href}
-                      href={child.href}
-                      className="flex items-center px-3 py-1.5 rounded-xl text-sm text-gray-600 hover:bg-white/60 transition-all"
-                    >
-                      {child.label}
-                    </Link>
-                  ))}
-                </div>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all",
+                active
+                  ? "bg-white shadow-sm text-gray-900 font-medium"
+                  : "text-gray-700 hover:bg-white/60"
               )}
-            </div>
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              <span>{item.label}</span>
+            </Link>
           )
         })}
       </nav>
