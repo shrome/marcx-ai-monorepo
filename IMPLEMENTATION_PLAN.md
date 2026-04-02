@@ -7,8 +7,11 @@
 ### Key Conventions
 
 - **`tenant` = `company`** — The AI-API uses `tenant_id` which maps to our `company.id`. Wherever the AI-API docs say "tenant", it means a Company in our schema.
+- **Session = General Ledger (GL)** — A `Session` IS a general ledger. When a user creates a session (via Chat) with a `fiscalYear`, that session becomes the ledger context. All chat messages and documents within it are interactions within that GL. The `/ledger/[id]` page renders a session's GL view. GL data is fetched from the AI API using the session's `fiscalYear` + company's `tenantId`.
+- **AI API Identity Mapping** — Our backend resolves `companyId` from the user's `CompanyMember` record and passes it as `x-tenant-id` to the AI API. `x-user-id` = `user.id`. Bridge fields: `session.id` → `external_session_id`, `file.id` → `external_file_id`. GL is scoped by `(tenant_id, ledger_scope_id, fiscal_year)`.
+- **AI API Base URL** — Live: `http://chatbot-alb-dev-343845085.ap-southeast-1.elb.amazonaws.com`. Set via `AI_API_BASE_URL` env var.
 - **Case module is DEPRECATED** — `apps/backend/src/modules/case/` is no longer active. Do not add new features to it. It will be removed in a future cleanup.
-- **Webhooks are DEFERRED** — Webhook endpoints for AI-API callbacks are not in scope until Jason explicitly approves after discussing with colleagues. See Phase 5.
+- **Webhooks are DEFERRED** — Webhook endpoints for AI-API callbacks are not in scope until Jason explicitly approves after discussing with colleagues. See Phase 7.
 - **Error handling & logging** — Every backend service must handle errors gracefully with structured error responses. Use NestJS built-in logger for all operations. Every external API call must be wrapped in try/catch with meaningful error messages.
 - **S3 file storage** — File upload/retrieval goes through `FileStorageService`. Ensure files are uploaded with proper content types, size validation, and secure key naming.
 
@@ -23,11 +26,13 @@
 5. [Phase 2 — AI-API Integration (Proxy Layer)](#5-phase-2--ai-api-integration-proxy-layer)
 6. [Phase 3 — Frontend Wiring](#6-phase-3--frontend-wiring)
 7. [Phase 4 — Testing](#7-phase-4--testing)
-8. [Phase 5 — Webhooks (DEFERRED — Pending Approval)](#8-phase-5--webhooks-deferred--pending-approval)
-9. [Environment Variables](#9-environment-variables)
-10. [Data Flow Sequences](#10-data-flow-sequences)
-11. [Implementation Order & Dependencies](#11-implementation-order--dependencies)
-12. [How to Execute This Plan](#12-how-to-execute-this-plan)
+8. [Phase 5 — Invitation Feature](#8-phase-5--invitation-feature)
+9. [Phase 6 — Session=GL Alignment & Ledger Rewire](#9-phase-6--sessiongl-alignment--ledger-rewire)
+10. [Phase 7 — Webhooks (DEFERRED — Pending Approval)](#10-phase-7--webhooks-deferred--pending-approval)
+11. [Environment Variables](#11-environment-variables)
+12. [Data Flow Sequences](#12-data-flow-sequences)
+13. [Implementation Order & Dependencies](#13-implementation-order--dependencies)
+14. [How to Execute This Plan](#14-how-to-execute-this-plan)
 
 ---
 
@@ -1128,7 +1133,135 @@ Add to root `package.json`:
 
 ---
 
-## 8. Phase 5 — Webhooks (DEFERRED — Pending Approval)
+## 8. Phase 5 — Invitation Feature
+
+> **Status:** PENDING — Planned, not yet implemented.
+
+### 5.1 Schema — New `invitation` Table
+
+Add to `packages/drizzle/src/schema.ts`:
+
+```typescript
+export const invitationStatusEnum = pgEnum("InvitationStatus", [
+  "PENDING", "ACCEPTED", "EXPIRED", "REVOKED"
+]);
+
+export const invitation = pgTable("invitation", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id").notNull().references(() => company.id),
+  email: citext("email").notNull(),
+  role: memberRoleEnum("role").notNull().default("VIEWER"),
+  invitedBy: uuid("invited_by").notNull().references(() => user.id),
+  token: text("token").notNull().unique(),
+  status: invitationStatusEnum("status").notNull().default("PENDING"),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+```
+
+Unique constraint: `(companyId, email)` for pending invitations (prevent duplicate invites).
+
+### 5.2 Backend — Invitation Module
+
+**Module:** `apps/backend/src/modules/invitation/`
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| `POST` | `/api/companies/:companyId/invitations` | 🔐 OWNER/ADMIN | Create invitation + send email with accept link |
+| `GET` | `/api/companies/:companyId/invitations` | 🔐 Any member | List pending invitations |
+| `DELETE` | `/api/companies/:companyId/invitations/:id` | 🔐 OWNER/ADMIN | Revoke invitation |
+| `GET` | `/api/invitations/:token` | Public | Get invitation details (company name, role, inviter) |
+| `POST` | `/api/invitations/:token/accept` | Public/Authed | Accept invitation → create CompanyMember |
+
+**Accept flow:**
+- If user is logged in → create CompanyMember record, set invitation to ACCEPTED, redirect to dashboard
+- If user has an account but not logged in → redirect to `/login?invitation=<token>`
+- If user has NO account → redirect to `/register?invitation=<token>`, after registration auto-accept
+
+### 5.3 Frontend — Invitation UI
+
+**New pages:**
+- `app/invitations/[token]/page.tsx` — Public accept page (shows company name, role, buttons)
+
+**Modified pages:**
+- `RegisterForm.tsx` — After registration, if `?invitation=token` in URL, auto-accept
+- `Settings → Members tab` — Add "Invite member" button + pending invitations list with revoke
+
+**New hooks/clients:**
+- `lib/backend/invitation.ts` — InvitationClient
+- `hooks/useInvitationQueries.ts` — useInvitation(token), useCreateInvitation(), etc.
+
+### 5.4 Tests
+- Backend E2E: `invitation.e2e-spec.ts` (create, list, accept, revoke, expired token, duplicate email)
+- Frontend Playwright: `invitation.spec.ts`
+
+---
+
+## 9. Phase 6 — Session=GL Alignment & Ledger Rewire
+
+> **Status:** PENDING — Planned, not yet implemented.
+> **Depends on:** Phases 1–3 complete.
+
+### 6.1 Backend — Fix Session Scoping
+
+**Current bug:** `session.service.ts` `findAll()` filters by `creatorId` only. Company members can only see their own sessions, not each other's.
+
+**Fix:** Change to query by `companyId` (resolved from user's CompanyMember record), so all company members see all company sessions.
+
+**Also add:** Query filter for `?fiscalYear=YYYY` to filter sessions by GL year.
+
+### 6.2 Backend — AI Proxy Adjustments
+
+- Pass `sessionId` as `external_session_id` in `POST /api/ocr/presign` body for cross-system traceability
+- Add `x-ledger-scope-id` header support where needed (defaults to `tenant_id`)
+- Update `AI_API_BASE_URL` to live AWS domain in env config
+
+### 6.3 Frontend — `/ledger` Page (Session List)
+
+**File:** `apps/web/app/(auth)/ledger/page.tsx`
+
+- Fetch all sessions via `useSessions()` (company-scoped after 6.1 fix)
+- Display as list/grid of "ledger books": title, fiscal year, created date, document count
+- Click → navigate to `/ledger/[sessionId]`
+- Empty state: "No ledgers yet. Create a new session in the Chat page to get started."
+
+### 6.4 Frontend — `/ledger/[id]` Page (Session GL Detail)
+
+**File:** `apps/web/app/(auth)/ledger/[id]/page.tsx`
+
+- Render `<LedgerPage sessionId={params.id} />`
+- This is the MAIN ledger detail page — do NOT redirect away from it
+
+### 6.5 Frontend — LedgerPage Component Refactor
+
+**File:** `apps/web/components/ledger/LedgerPage.tsx`
+
+- Accept `sessionId: string` prop
+- Fetch session details to get `fiscalYear`
+- **Overview tab:** GL transactions for that session's fiscal year via `useGLStatus(fiscalYear)` / `useGLTransactions()`
+- **Tasks tab:** Documents filtered by `sessionId` via `useDocuments({ sessionId })`
+- Wire TaskDetailView back for document review:
+  - Map `Document` → `TaskData` format (rawData, draftData, approvedData)
+  - Draft edits → `useUpdateDocumentDraft()`
+  - "Verified" button → `useApproveDocument()`
+
+### 6.6 Frontend — Sidebar Dynamic Sessions
+
+**File:** `apps/web/components/layout/AppSidebar.tsx`
+
+- Dynamically list recent sessions under "Ledger" nav item
+- Max 5 sessions, with "View all" link to `/ledger`
+- Each links to `/ledger/[sessionId]`
+
+### 6.7 Tests
+- Backend E2E: Update `session.e2e-spec.ts` for company-wide visibility
+- Frontend Playwright: `ledger.spec.ts` — session list, GL detail, document review
+
+---
+
+## 10. Phase 7 — Webhooks (DEFERRED — Pending Approval)
 
 > ⚠️ **This phase is NOT to be executed until Jason explicitly approves it.** The webhook design needs to be discussed with colleagues first. The rest of the system (Phases 1–4) works via polling or synchronous proxy calls without webhooks.
 
@@ -1212,13 +1345,13 @@ WEBHOOK_SECRET=your-webhook-shared-secret  # Shared secret for webhook auth
 
 ---
 
-## 9. Environment Variables
+## 11. Environment Variables
 
 ### Backend (new additions)
 
 ```env
 # AI-API Integration
-AI_API_BASE_URL=http://localhost:8000      # AI-API Django server URL (fake for now, replace when ready)
+AI_API_BASE_URL=http://chatbot-alb-dev-343845085.ap-southeast-1.elb.amazonaws.com  # Live AWS ALB
 
 # Existing (already configured)
 AWS_ASSETS_BUCKET_NAME=marcx-assets
@@ -1239,7 +1372,7 @@ API_URL=http://localhost:4000              # Server-side backend URL
 
 ---
 
-## 10. Data Flow Sequences
+## 12. Data Flow Sequences
 
 ### 10.1 Document Upload & Extraction (Full Flow)
 
@@ -1374,7 +1507,7 @@ Frontend                    Backend (NestJS)
 
 ---
 
-## 11. Implementation Order & Dependencies
+## 13. Implementation Order & Dependencies
 
 ### Phase 1: Backend API Completion
 
@@ -1421,7 +1554,28 @@ Step 4.2: Integration tests (full flows)
 Step 4.3: Frontend component tests (deferred)
 ```
 
-### Phase 5: Webhooks (BLOCKED — pending Jason's approval)
+### Phase 5: Invitation Feature (NEW)
+
+```
+Step 5.1: Schema — Add invitation table + InvitationStatus enum to schema.ts, rebuild @marcx/db
+Step 5.2: Backend — Invitation module (controller, service, DTOs, email sending)
+Step 5.3: Frontend — InvitationClient, hooks, accept page, Settings integration
+Step 5.4: Tests — Backend E2E + Frontend Playwright for invitation flow
+```
+
+### Phase 6: Session=GL Alignment & Ledger Rewire (NEW)
+
+```
+Step 6.1: Backend — Fix session.findAll() to scope by companyId (not just creatorId)
+Step 6.2: Backend — AI proxy sessionId passthrough + x-ledger-scope-id support
+Step 6.3: Frontend — /ledger page as session list
+Step 6.4: Frontend — /ledger/[id] page as GL detail (restore, undo redirect)
+Step 6.5: Frontend — LedgerPage component refactor (sessionId prop, Tasks tab, TaskDetailView)
+Step 6.6: Frontend — Sidebar dynamic session children
+Step 6.7: Tests — Backend + Frontend for session/ledger flow
+```
+
+### Phase 7: Webhooks (BLOCKED — pending Jason's approval)
 
 ```
 Step 5.1: WebhookGuard (shared secret validation)
@@ -1476,7 +1630,7 @@ Comprehensive mapping from our backend proxy routes to AI-API endpoints:
 
 ---
 
-## 12. How to Execute This Plan
+## 14. How to Execute This Plan
 
 ### Prerequisites
 
@@ -1520,8 +1674,10 @@ Before starting implementation, ensure:
 
 ### Phase Completion Checklist
 
-- [ ] **Phase 1:** All new backend modules compile. CRUD endpoints work for Document, Billing, CompanyMember, ActivityLog.
-- [ ] **Phase 2:** AI-API proxy endpoints work. Chat returns real AI responses (not lorem ipsum). OCR pipeline callable.
-- [ ] **Phase 3:** Frontend pages wired to real backend. Chat, Documents, Ledger, Settings pages functional.
-- [ ] **Phase 4:** Unit and integration tests pass for all new modules.
-- [ ] **Phase 5:** ⏸️ BLOCKED — Webhook endpoints (pending Jason's approval after colleague discussion).
+- [x] **Phase 1:** All new backend modules compile. CRUD endpoints work for Document, Billing, CompanyMember, ActivityLog. ✅
+- [x] **Phase 2:** AI-API proxy endpoints work. Chat returns real AI responses (not lorem ipsum). OCR pipeline callable. ✅
+- [x] **Phase 3:** Frontend pages wired to real backend. Chat, Documents, Ledger, Settings pages functional. ✅
+- [ ] **Phase 4:** Backend E2E tests, Scalar API docs, Playwright frontend tests. (Partially done — 73 E2E tests, Scalar configured)
+- [x] **Phase 5:** Invitation feature — schema ✅, migration ✅, backend module ✅, frontend UI ✅ (AcceptInvitationPage, hooks, client), tests pending.
+- [x] **Phase 6:** Session=GL alignment — session scoping fix ✅, AI proxy sessionId passthrough ✅, /ledger page → session list ✅, /ledger/[id] → GL detail ✅, LedgerPage accepts sessionId ✅, sidebar dynamic sessions ✅, TaskDetailView wiring pending.
+- [ ] **Phase 7:** ⏸️ BLOCKED — Webhook endpoints (pending Jason's approval after colleague discussion).

@@ -26,7 +26,8 @@ export const verificationPurposeEnum = pgEnum("VerificationPurpose", [
 ]);
 
 // Workspace
-export const chatRoleEnum = pgEnum("ChatRole", ["USER", "ASSISTANT"]);
+export const chatRoleEnum = pgEnum("ChatRole", ["USER", "ASSISTANT", "SYSTEM", "TOOL"]);
+export const ledgerStatusEnum = pgEnum("LedgerStatus", ["ACTIVE", "CLOSED", "ARCHIVED"]);
 export const chatFeedbackEnum = pgEnum("ChatFeedback", ["HELPFUL", "UNHELPFUL"]);
 
 // Document
@@ -57,6 +58,14 @@ export const creditTransactionTypeEnum = pgEnum("CreditTransactionType", [
   "USAGE",
   "REFUND",
   "ADJUSTMENT"
+]);
+
+// Invitation
+export const invitationStatusEnum = pgEnum("InvitationStatus", [
+  "PENDING",
+  "ACCEPTED",
+  "EXPIRED",
+  "REVOKED"
 ]);
 
 // ── Auth & Identity ───────────────────────────────────────────────────────────
@@ -126,15 +135,34 @@ export const verificationToken = pgTable("VerificationToken", {
 
 // ── Workspace ─────────────────────────────────────────────────────────────────
 
+export const ledger = pgTable(
+  "Ledger",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("companyId").references(() => company.id).notNull(),
+    creatorId: uuid("creatorId").references(() => user.id).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    fiscalYear: integer("fiscalYear").notNull(),
+    status: ledgerStatusEnum("status").notNull().default("ACTIVE"),
+    description: text("description"),
+    deletedAt: timestamp("deletedAt"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("ledger_company_fiscal_year_idx").on(table.companyId, table.fiscalYear),
+    index().on(table.companyId),
+  ]
+);
+
 export const session = pgTable("Session", {
   id: uuid("id").primaryKey().defaultRandom(),
   companyId: uuid("companyId").references(() => company.id).notNull(),
   creatorId: uuid("creatorId").references(() => user.id).notNull(),
+  // optional: links this chat session to a GL ledger
+  ledgerId: uuid("ledgerId").references(() => ledger.id),
   title: text("title").notNull().default("New Chat"),
   description: text("description"),
   status: text("status").notNull().default("open"),
-  // fiscal year for GL sessions e.g. 2024
-  fiscalYear: integer("fiscalYear"),
   // AI-maintained compressed context to reduce token usage in long sessions
   summary: text("summary"),
   ...timestamps,
@@ -155,29 +183,27 @@ export const chatMessage = pgTable("ChatMessage", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export const file = pgTable("File", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  sessionId: uuid("sessionId").references(() => session.id).notNull(),
-  // nullable; message that triggered the upload
-  chatId: uuid("chatId").references(() => chatMessage.id),
-  name: text("name").notNull(),
-  url: text("url").notNull(),
-  size: text("size").notNull(),
-  mimeType: text("mimeType").notNull(),
-  ...timestamps,
-});
-
 // ── Document ──────────────────────────────────────────────────────────────────
 
 export const document = pgTable(
   "Document",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // 1:1 with File; created immediately on upload
-    fileId: uuid("fileId").references(() => file.id).notNull().unique(),
+    // GL ledger this document belongs to (nullable for legacy/unscoped docs)
+    ledgerId: uuid("ledgerId").references(() => ledger.id),
     companyId: uuid("companyId").references(() => company.id).notNull(),
     sessionId: uuid("sessionId").references(() => session.id).notNull(),
+    // nullable; message that triggered the upload
+    chatId: uuid("chatId").references(() => chatMessage.id),
     uploadedBy: uuid("uploadedBy").references(() => user.id).notNull(),
+    // ── File storage fields (merged from File table) ─────────────────────────
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    size: text("size").notNull(),
+    mimeType: text("mimeType").notNull(),
+    // "chat" | "upload" | "api" | "bulk_import"
+    uploadSource: varchar("uploadSource", { length: 32 }),
+    // ── Extraction lifecycle ─────────────────────────────────────────────────
     documentType: documentTypeEnum("documentType").notNull().default("OTHER"),
     extractionStatus: extractionStatusEnum("extractionStatus").notNull().default("PENDING"),
     // AI model that performed extraction e.g. "claude-3-5-sonnet"
@@ -204,6 +230,7 @@ export const document = pgTable(
   (table) => [
     index().on(table.companyId, table.documentStatus),
     index().on(table.sessionId),
+    index().on(table.ledgerId),
     index().on(table.extractionStatus),
   ]
 );
@@ -271,6 +298,32 @@ export const activityLog = pgTable(
   ]
 );
 
+// ── Invitation ────────────────────────────────────────────────────────────────
+
+// Email invitation for company membership (user may or may not have an account)
+export const invitation = pgTable(
+  "Invitation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("companyId").references(() => company.id).notNull(),
+    email: text("email").notNull(),
+    role: memberRoleEnum("role").notNull().default("VIEWER"),
+    invitedBy: uuid("invitedBy").references(() => user.id).notNull(),
+    // Secure random token for the accept link; single-use
+    token: text("token").notNull().unique(),
+    status: invitationStatusEnum("status").notNull().default("PENDING"),
+    expiresAt: timestamp("expiresAt").notNull(),
+    acceptedAt: timestamp("acceptedAt"),
+    ...timestamps,
+  },
+  (table) => [
+    // One pending invite per email per company
+    uniqueIndex("invitation_company_email_pending_idx").on(table.companyId, table.email),
+    index().on(table.token),
+    index().on(table.companyId),
+  ]
+);
+
 // ── Type exports ──────────────────────────────────────────────────────────────
 
 export type User = typeof user.$inferSelect
@@ -283,12 +336,12 @@ export type Credential = typeof credential.$inferSelect
 export type NewCredential = typeof credential.$inferInsert
 export type VerificationToken = typeof verificationToken.$inferSelect
 export type NewVerificationToken = typeof verificationToken.$inferInsert
+export type Ledger = typeof ledger.$inferSelect
+export type NewLedger = typeof ledger.$inferInsert
 export type Session = typeof session.$inferSelect
 export type NewSession = typeof session.$inferInsert
 export type ChatMessage = typeof chatMessage.$inferSelect
 export type NewChatMessage = typeof chatMessage.$inferInsert
-export type File = typeof file.$inferSelect
-export type NewFile = typeof file.$inferInsert
 export type Document = typeof document.$inferSelect
 export type NewDocument = typeof document.$inferInsert
 export type CompanyCredit = typeof companyCredit.$inferSelect
@@ -297,6 +350,8 @@ export type CreditTransaction = typeof creditTransaction.$inferSelect
 export type NewCreditTransaction = typeof creditTransaction.$inferInsert
 export type ActivityLog = typeof activityLog.$inferSelect
 export type NewActivityLog = typeof activityLog.$inferInsert
+export type Invitation = typeof invitation.$inferSelect
+export type NewInvitation = typeof invitation.$inferInsert
 
 // ── Relations ─────────────────────────────────────────────────────────────────
 
@@ -309,15 +364,18 @@ export const companyRelations = relations(company, ({ one, many }) => ({
   subsidiaries: many(company, { relationName: "subsidiaries" }),
   users: many(user),
   members: many(companyMember),
+  ledgers: many(ledger),
   sessions: many(session),
   documents: many(document),
   credit: one(companyCredit),
   activityLogs: many(activityLog),
+  invitations: many(invitation),
 }));
 
 export const userRelations = relations(user, ({ many }) => ({
   memberships: many(companyMember),
   credentials: many(credential),
+  createdLedgers: many(ledger),
   createdSessions: many(session),
   chatMessages: many(chatMessage),
   uploadedDocuments: many(document, { relationName: "uploadedDocuments" }),
@@ -352,6 +410,19 @@ export const verificationTokenRelations = relations(verificationToken, ({ one })
   }),
 }));
 
+export const ledgerRelations = relations(ledger, ({ one, many }) => ({
+  company: one(company, {
+    fields: [ledger.companyId],
+    references: [company.id],
+  }),
+  creator: one(user, {
+    fields: [ledger.creatorId],
+    references: [user.id],
+  }),
+  sessions: many(session),
+  documents: many(document),
+}));
+
 export const sessionRelations = relations(session, ({ one, many }) => ({
   company: one(company, {
     fields: [session.companyId],
@@ -361,8 +432,11 @@ export const sessionRelations = relations(session, ({ one, many }) => ({
     fields: [session.creatorId],
     references: [user.id],
   }),
+  ledger: one(ledger, {
+    fields: [session.ledgerId],
+    references: [ledger.id],
+  }),
   chatMessages: many(chatMessage),
-  files: many(file),
   documents: many(document),
   activityLogs: many(activityLog),
 }));
@@ -376,25 +450,13 @@ export const chatMessageRelations = relations(chatMessage, ({ one, many }) => ({
     fields: [chatMessage.userId],
     references: [user.id],
   }),
-  files: many(file),
-}));
-
-export const fileRelations = relations(file, ({ one }) => ({
-  session: one(session, {
-    fields: [file.sessionId],
-    references: [session.id],
-  }),
-  chatMessage: one(chatMessage, {
-    fields: [file.chatId],
-    references: [chatMessage.id],
-  }),
-  document: one(document),
+  documents: many(document),
 }));
 
 export const documentRelations = relations(document, ({ one }) => ({
-  file: one(file, {
-    fields: [document.fileId],
-    references: [file.id],
+  ledger: one(ledger, {
+    fields: [document.ledgerId],
+    references: [ledger.id],
   }),
   company: one(company, {
     fields: [document.companyId],
@@ -403,6 +465,10 @@ export const documentRelations = relations(document, ({ one }) => ({
   session: one(session, {
     fields: [document.sessionId],
     references: [session.id],
+  }),
+  chatMessage: one(chatMessage, {
+    fields: [document.chatId],
+    references: [chatMessage.id],
   }),
   uploadedBy: one(user, {
     fields: [document.uploadedBy],
@@ -447,5 +513,16 @@ export const activityLogRelations = relations(activityLog, ({ one }) => ({
   session: one(session, {
     fields: [activityLog.sessionId],
     references: [session.id],
+  }),
+}));
+
+export const invitationRelations = relations(invitation, ({ one }) => ({
+  company: one(company, {
+    fields: [invitation.companyId],
+    references: [company.id],
+  }),
+  invitedByUser: one(user, {
+    fields: [invitation.invitedBy],
+    references: [user.id],
   }),
 }));

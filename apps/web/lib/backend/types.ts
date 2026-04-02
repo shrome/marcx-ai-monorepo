@@ -197,6 +197,7 @@ export interface Session {
   description?: string;
   status: 'open' | 'in_progress' | 'closed';
   priority: 'low' | 'medium' | 'high';
+  fiscalYear?: number;
   userId: string;
   companyId?: string;
   createdAt: string;

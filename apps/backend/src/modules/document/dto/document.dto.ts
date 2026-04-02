@@ -39,6 +39,11 @@ export class CreateDocumentDto {
   @IsUUID()
   sessionId: string;
 
+  @ApiPropertyOptional({ format: 'uuid', description: 'Ledger this document belongs to' })
+  @IsOptional()
+  @IsUUID()
+  ledgerId?: string;
+
   @ApiPropertyOptional({ enum: DocumentType, example: DocumentType.INVOICE })
   @IsOptional()
   @IsEnum(DocumentType)
@@ -85,6 +90,11 @@ export class ListDocumentsQueryDto {
   @IsOptional()
   @IsUUID()
   sessionId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Filter by ledger' })
+  @IsOptional()
+  @IsUUID()
+  ledgerId?: string;
 
   @ApiPropertyOptional({ enum: DocumentType })
   @IsOptional()

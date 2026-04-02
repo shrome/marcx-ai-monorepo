@@ -13,6 +13,8 @@ import { BillingModule } from './modules/billing/billing.module';
 import { CompanyMemberModule } from './modules/company-member/company-member.module';
 import { DocumentModule } from './modules/document/document.module';
 import { AiProxyModule } from './modules/ai-proxy/ai-proxy.module';
+import { InvitationModule } from './modules/invitation/invitation.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
 
 @Module({
   imports: [
@@ -28,9 +30,12 @@ import { AiProxyModule } from './modules/ai-proxy/ai-proxy.module';
     CompanyMemberModule,
     DocumentModule,
     AiProxyModule,
+    InvitationModule,
+    LedgerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+
 

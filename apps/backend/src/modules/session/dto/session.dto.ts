@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsNumber, IsInt, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateChatSessionDto {
@@ -7,11 +7,10 @@ export class CreateChatSessionDto {
   @IsOptional()
   title?: string;
 
-  @ApiPropertyOptional({ example: 2024 })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Ledger this session belongs to' })
   @IsOptional()
-  @IsInt()
-  @Min(2000)
-  fiscalYear?: number;
+  @IsUUID()
+  ledgerId?: string;
 }
 
 export class CreateSessionDto {
@@ -30,11 +29,10 @@ export class CreateSessionDto {
   @IsOptional()
   companyId?: string;
 
-  @ApiPropertyOptional({ example: 2024 })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Ledger this session belongs to' })
   @IsOptional()
-  @IsInt()
-  @Min(2000)
-  fiscalYear?: number;
+  @IsUUID()
+  ledgerId?: string;
 }
 
 export class UpdateSessionDto {
@@ -52,4 +50,3 @@ export class UpdateSessionDto {
   @IsOptional()
   status?: string;
 }
-

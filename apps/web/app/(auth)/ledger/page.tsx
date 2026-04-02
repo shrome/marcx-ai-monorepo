@@ -1,5 +1,5 @@
-import { LedgerPage } from "@/components/ledger/LedgerPage"
+import { LedgerListPage } from "@/components/ledger/LedgerListPage"
 
 export default function LedgerIndex() {
-  return <LedgerPage />
+  return <LedgerListPage />
 }

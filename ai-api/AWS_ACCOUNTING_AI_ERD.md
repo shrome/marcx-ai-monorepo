@@ -1,21 +1,25 @@
-# AWS Accounting AI ERD (Comprehensive)
+# AWS Accounting AI ERD (Current Build)
 
-This ERD documents all persistence layers used by the Accounting AI backend in AWS deployment.
+This ERD documents the current persistence layers used by the Accounting AI service in AWS.
 
 Scope:
 - Primary relational database: AWS RDS PostgreSQL (Django ORM tables)
 - State/checkpoint stores: DynamoDB
 - Object persistence: S3 (document and artifact domains)
 
+Important note:
+- This file reflects the **current deployed AI-service schema**.
+- Recommended backend-alignment bridge fields are documented separately and are **not** drawn into the live ERD unless they exist in code and migrations.
+
 ## 1. Persistence Topology
 
 - RDS PostgreSQL:
-  - System of record for API/business entities (OCR jobs, chat, feedback, GL postings, enrichment outputs, learning data, audit logs).
+  - System of record for OCR, enrichment, chat, feedback, export tracking, GL persistence, and audit logs.
 - DynamoDB:
   - LangGraph checkpointing table for interrupt/resume state.
-  - Episodes table in hybrid pipeline stack.
+  - Episodes table in the hybrid pipeline stack.
 - S3:
-  - Raw and processed OCR artifacts, organized supplier copies, and episode artifacts.
+  - Raw and processed OCR artifacts, organized supplier copies, and uploaded GL workbooks.
 
 ## 2. Logical ERD (RDS)
 
@@ -41,13 +45,19 @@ erDiagram
     CHAT_FEEDBACKSUBMISSION ||--o{ FIELD_FEEDBACK : contains
     CHAT_FEEDBACKSUBMISSION ||--o{ EXTRACTION_RULES : proposes
 
+    GL_JOURNAL_ENTRIES ||--o{ GL_JOURNAL_LINES : has_lines
+    CONFIRMED_DOCUMENTS ||--o{ AUTOCOUNT_EXPORT_ITEMS : exported_as
+    AUTOCOUNT_EXPORT_BATCHES ||--o{ AUTOCOUNT_EXPORT_ITEMS : contains
+
     CHAT_CHATSESSION {
       string session_id UK
       string tenant_id
       string user_id
       int fiscal_year
       string active_doc_id
+      string title
       string status
+      bool is_active
       datetime created_at
       datetime updated_at
     }
@@ -69,6 +79,7 @@ erDiagram
       text ocr_json_key
       string session_id
       string status
+      text error
       datetime received_at
       datetime processed_at
     }
@@ -79,12 +90,18 @@ erDiagram
       string user_id
       int fiscal_year
       date expense_date
+      int month
       decimal amount
+      string currency
       string category
       string vendor
+      text description
+      string reference_number
       string gl_account_code
+      string gl_account_name
       string doc_id
       string journal_id
+      datetime recorded_at
     }
 
     CHAT_FEEDBACKSUBMISSION {
@@ -97,8 +114,11 @@ erDiagram
       json original_extraction
       json corrected_extraction
       json corrections
+      json corrections_summary
       json rules_generated
+      text reprocess_execution_arn
       datetime created_at
+      datetime updated_at
     }
 
     CHAT_TENANTLLMUSAGE {
@@ -111,6 +131,8 @@ erDiagram
       int max_requests_per_month
       decimal max_cost_usd_per_month
       int max_tokens_per_month
+      datetime created_at
+      datetime updated_at
     }
 
     OCR_OCRJOB {
@@ -131,6 +153,9 @@ erDiagram
       string doc_id UK
       string tenant_id
       string filename
+      string content_type
+      int file_size
+      string upload_source
       string status
       text s3_raw_key
       datetime created_at
@@ -158,6 +183,7 @@ erDiagram
       float confidence
       string source
       string validation_status
+      text validation_message
       datetime created_at
     }
 
@@ -174,6 +200,7 @@ erDiagram
       string status
       json metadata
       datetime posted_at
+      datetime created_at
     }
 
     POSTING_USERGLPROFILE {
@@ -184,6 +211,7 @@ erDiagram
       text gl_file_path
       int accounts_count
       datetime initialised_at
+      datetime updated_at
     }
 
     CORE_AUDITLOG {
@@ -197,6 +225,8 @@ erDiagram
       int status_code
       float duration_ms
       string ip_address
+      string user_agent
+      int content_length
       datetime timestamp
     }
 
@@ -206,8 +236,11 @@ erDiagram
       json merchant_mappings
       json category_rules
       json category_statistics
+      decimal avg_invoice_amount
       json common_gl_accounts
+      json custom_terminology
       int learning_episode_count
+      datetime created_at
       datetime updated_at
     }
 
@@ -222,6 +255,8 @@ erDiagram
       float quality_score
       int usage_count
       float success_rate
+      datetime created_at
+      datetime last_used_at
     }
 
     USER_PROFILES {
@@ -230,8 +265,15 @@ erDiagram
       string user_id
       json preferred_categories
       json common_vendors
+      json typical_expense_ranges
+      string communication_style
       json preferred_gl_accounts
+      json custom_category_rules
+      json upload_patterns
+      json correction_history
       int interaction_count
+      datetime last_interaction_at
+      datetime created_at
       datetime updated_at
     }
 
@@ -244,16 +286,28 @@ erDiagram
       json rule_definition
       string lifecycle_state
       float ai_confidence
+      text ai_review_summary
+      datetime ai_reviewed_at
+      int times_applied
+      int success_count
+      int failure_count
+      datetime created_at
+      datetime activated_at
+      datetime deprecated_at
     }
 
     STRATEGY_PERFORMANCE {
       int id PK
       string tenant_id
       string strategy_name
-      date date
       int total_uses
       int successful_predictions
       int user_corrections
+      float avg_confidence
+      float avg_execution_time_ms
+      decimal avg_cost_usd
+      date date
+      datetime updated_at
     }
 
     TENANT_CHART_OF_ACCOUNTS {
@@ -266,6 +320,8 @@ erDiagram
       json keywords
       bool is_active
       int version
+      datetime created_at
+      datetime updated_at
     }
 
     TENANT_CATEGORISATION_RULES {
@@ -276,7 +332,10 @@ erDiagram
       string match_type
       text match_value
       string assigned_account_code
+      string assigned_account_name
       bool is_active
+      datetime created_at
+      datetime updated_at
     }
 
     HISTORICAL_MAPPINGS {
@@ -285,8 +344,11 @@ erDiagram
       string supplier_name
       text normalised_description
       string final_account_code
+      string final_account_name
       int occurrence_count
       float confidence_score
+      datetime last_used_at
+      datetime created_at
     }
 
     CATEGORISATION_RESULTS {
@@ -295,9 +357,12 @@ erDiagram
       string doc_id
       string tenant_id
       string chosen_account_code
+      string chosen_account_name
       float confidence
       string source
       json candidate_list
+      text reasoning
+      datetime created_at
     }
 
     SUMMARY_RESULTS {
@@ -308,6 +373,7 @@ erDiagram
       text summary
       float confidence
       string source
+      datetime created_at
     }
 
     FIELD_FEEDBACK {
@@ -322,6 +388,7 @@ erDiagram
       text hint
       float original_confidence
       string accepted_by
+      datetime created_at
     }
 
     CONFIRMED_DOCUMENTS {
@@ -335,6 +402,7 @@ erDiagram
       string review_status
       datetime confirmed_at
       string confirmed_by
+      datetime created_at
     }
 
     SESSIONS_SESSION {
@@ -345,6 +413,7 @@ erDiagram
       json state_json
       json loaded_context_json
       text summary
+      datetime summary_updated_at
       bool is_active
       datetime created_at
       datetime last_activity
@@ -357,6 +426,78 @@ erDiagram
       text content
       json metadata
       datetime timestamp
+    }
+
+    GL_PERSISTENT_ACCOUNTS {
+      int id PK
+      string tenant_id
+      string user_id
+      int fiscal_year
+      string account_code
+      string account_name
+      string account_type
+      string normal_balance
+      decimal opening_balance
+      decimal current_balance
+      decimal period_debits
+      decimal period_credits
+      bool is_active
+      datetime updated_at
+    }
+
+    GL_JOURNAL_ENTRIES {
+      int id PK
+      string entry_id UK
+      string tenant_id
+      string user_id
+      int fiscal_year
+      int fiscal_period
+      string journal_type
+      string reference
+      text description
+      date entry_date
+      datetime posted_at
+      bool is_balanced
+      string source
+      string doc_id
+      string session_id
+      string supplier_name
+      string invoice_number
+      string currency
+      decimal total_amount
+    }
+
+    GL_JOURNAL_LINES {
+      int id PK
+      int journal_entry_id FK
+      string account_code
+      string account_name
+      decimal debit
+      decimal credit
+      text description
+      string counterparty_account
+    }
+
+    AUTOCOUNT_EXPORT_BATCHES {
+      int id PK
+      string batch_id UK
+      string tenant_id
+      string exported_by
+      int document_count
+      int skipped_count
+      string generated_filename
+      datetime exported_at
+    }
+
+    AUTOCOUNT_EXPORT_ITEMS {
+      int id PK
+      int batch_id FK
+      string tenant_id
+      string doc_id
+      int confirmed_document_id
+      string export_status
+      text skip_reason
+      datetime exported_at
     }
 ```
 
@@ -385,61 +526,105 @@ erDiagram
 
 ## 4. S3 Object Domains (AWS)
 
-Primary key namespaces used by OCR pipeline service:
+Primary key namespaces used by the OCR pipeline:
 - `raw/tenant={tenant}/ingest_date={date}/{doc_id}/source.{ext}`
 - `stage/tenant={tenant}/ingest_date={date}/{doc_id}/paddle_ocr.json`
-- `validated/...` (pipeline validated output)
+- `validated/...`
 - `organized/tenant={tenant}/supplier={supplier}/{doc_id}/invoice.{ext}`
+- `gl-uploads/{tenant}/{user}/FY{year}/{filename}`
 
 Why this matters for backend developers:
-- RDS rows reference these keys (`OCRJob.raw_key`, `stage_key`, `validated_key`, and metadata blobs).
-- API responses expose presigned URLs and key references for retrieval and traceability.
+- RDS rows reference these keys or derived URIs.
+- API responses expose presigned URLs, keys, and file identifiers for traceability.
 
 ## 5. Tenant Isolation Model (Current)
 
 Current storage partitioning conventions:
-- OCR and enrichment tables: tenant scoped by `tenant_id` column.
-- Chat tables: tenant and user scoped.
-- GL runtime profile (`UserGLProfile`): unique by `(tenant_id, user_id, fiscal_year)`.
-- In-memory GL engine key (not DB table): `(tenant_id:user_id:fiscal_year)`.
+- OCR and enrichment tables are tenant-scoped by `tenant_id`.
+- Chat tables are tenant and user scoped.
+- GL runtime profile (`posting_userglprofile`) is unique by `(tenant_id, user_id, fiscal_year)`.
+- In-memory GL engine key is `(tenant_id:user_id:fiscal_year)`.
 
 Practical implication:
-- Official persisted postings are in RDS model tables.
-- Live GL balances/transactions are generated from in-memory engine state reloaded via `UserGLProfile`.
+- Durable GL account and journal records are stored in `gl_persistent_accounts`, `gl_journal_entries`, and `gl_journal_lines`.
+- Some live GL behavior still depends on in-memory state plus `posting_userglprofile` rehydration.
 
-## 6. High-value Constraints and Indexes
+## 6. High-Value Constraints and Indexes
 
 Critical uniqueness constraints:
-- `OCRJob`: unique `(tenant_id, doc_id)`
-- `UserGLProfile`: unique `(tenant_id, user_id, fiscal_year)`
-- `TenantLLMUsage`: unique `(tenant_id, period)`
-- `TenantChartOfAccounts`: unique `(tenant_id, account_code)`
-- `StrategyPerformance`: unique `(tenant_id, strategy_name, date)`
+- `ocr_ocrjob`: unique `(tenant_id, doc_id)`
+- `posting_userglprofile`: unique `(tenant_id, user_id, fiscal_year)`
+- `chat_tenantllmusage`: unique `(tenant_id, period)`
+- `tenant_chart_of_accounts`: unique `(tenant_id, account_code)`
+- `strategy_performance`: unique `(tenant_id, strategy_name, date)`
+- `gl_persistent_accounts`: unique `(tenant_id, user_id, fiscal_year, account_code)`
+- `gl_journal_entries`: unique `entry_id`
+- `autocount_export_batches`: unique `batch_id`
+- `autocount_export_items`: unique `(tenant_id, doc_id)`
 
 High-traffic indexes:
 - Audit logs by `(tenant_id, timestamp)` and `(status_code, timestamp)`
 - Feedback and enrichment tables by `(tenant_id, doc_id)`
 - Expense records by tenant/user/fiscal dimensions
-- OCR/Document status by tenant and status
+- OCR/document status by tenant and status
+- Persistent GL accounts by `(tenant_id, user_id, fiscal_year)` and `(tenant_id, user_id, fiscal_year, is_active)`
+- Journal entries by `(tenant_id, user_id, fiscal_year)`, `(tenant_id, user_id, entry_date)`, `(tenant_id, supplier_name)`, `(tenant_id, reference)`
+- Export items by `(tenant_id, export_status)` and `batch`
+- Export batches by `(tenant_id, exported_at)`
 
 ## 7. Data Ownership by Domain
 
+This AI service owns:
 - OCR domain:
-  - `OCRJob`, `Document`, `OCRResult`, `ParsedField`
+  - `ocr_ocrjob`, `documents`, `ocr_results`, `parsed_fields`
 - Chat domain:
-  - `ChatSession`, `ChatMessage`, `JobCallback`, `FeedbackSubmission`, `TenantLLMUsage`, `ExpenseRecord`
+  - `chat_chatsession`, `chat_chatmessage`, `chat_jobcallback`, `chat_feedbacksubmission`, `chat_tenantllmusage`, `chat_expenserecord`
 - Learning/enrichment domain:
-  - `TenantKnowledge`, `GoldenExample`, `UserProfile`, `ExtractionRule`, `StrategyPerformance`, `FieldFeedback`, `ConfirmedDocument`, `CategorisationResult`, `SummaryResult`, `HistoricalMapping`, tenant COA/rules
-- GL posting/profile domain:
-  - `GLPostingEntry`, `UserGLProfile`
-- Platform observability domain:
-  - `AuditLog`
+  - `tenant_knowledge`, `golden_examples`, `user_profiles`, `extraction_rules`, `strategy_performance`, `field_feedback`, `confirmed_documents`, `categorisation_results`, `summary_results`, `historical_mappings`, `tenant_chart_of_accounts`, `tenant_categorisation_rules`
+- GL persistence domain:
+  - `posting_glpostingentry`, `posting_userglprofile`, `gl_persistent_accounts`, `gl_journal_entries`, `gl_journal_lines`
+- Export domain:
+  - `autocount_export_batches`, `autocount_export_items`
+- Observability:
+  - `core_auditlog`
 
-## 8. Backend Developer Checklist
+Backend platform owns separately:
+- Company, User, CompanyMember, Credential, VerificationToken
+- Platform Session, platform ChatMessage, File
+- Canonical Account, canonical Document, canonical JournalEntry, canonical JournalEntryLine
+- CompanyCredit, CreditTransaction
+- Platform ActivityLog
+
+## 8. Recommended Future Bridge Fields (Not Yet Implemented)
+
+These are safe bridge-field additions for backend-platform traceability.
+They are not part of the current deployed schema unless migrations are applied.
+
+| AI Service Table | Proposed Bridge Field | Maps To |
+|---|---|---|
+| `documents` | `external_file_id` | backend `File.id` |
+| `documents` | `external_session_id` | backend `Session.id` |
+| `documents` | `document_type` | backend `Document.documentType` |
+| `documents` | `error_message` | backend `Document.errorMessage` |
+| `documents` | `approved_at`, `approved_by` | approval metadata |
+| `tenant_chart_of_accounts` | `external_account_id` | backend `Account.id` |
+| `tenant_chart_of_accounts` | `parent_account_code` | account hierarchy |
+| `tenant_chart_of_accounts` | `description`, `is_system`, `deleted_at` | account metadata |
+| `gl_journal_entries` | `external_journal_entry_id` | backend `JournalEntry.id` |
+| `gl_journal_entries` | `lifecycle_status`, `posted_by`, `voided_at`, `voided_by`, `deleted_at` | journal lifecycle |
+| `gl_journal_lines` | `sort_order` | source ordering |
+| `gl_journal_lines` | `external_account_id` | backend `Account.id` |
+
+Shared identifiers already used in the current design:
+- `tenant_id` = backend `Company.id`
+- `user_id` = backend `User.id`
+- `session_id` = backend `Session.id`
+
+## 9. Backend Developer Checklist
 
 Before making schema/API changes:
 1. Confirm tenant index strategy for any new table.
 2. Add explicit DB indexes for query paths used by endpoints.
-3. Keep `doc_id` and `tenant_id` as first-class filter keys.
-4. Update both RDS schema docs and this ERD.
-5. Validate callback and graph-resume compatibility when touching checkpoint-linked entities.
+3. Keep `tenant_id`, `user_id`, `session_id`, and `doc_id` as first-class integration keys.
+4. Keep “current schema” and “future bridge-field proposals” separate in documentation.
+5. Validate checkpoint and callback-resume compatibility when touching chat-linked entities.

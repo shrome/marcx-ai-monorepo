@@ -27,6 +27,33 @@ export class EmailService {
   }
 
   /**
+   * Send a generic HTML email (used for invitations, etc.)
+   */
+  async sendEmail(params: { to: string; subject: string; html: string }): Promise<void> {
+    const { to, subject, html } = params;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      const { data, error } = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: [to],
+        subject,
+        html,
+      });
+
+      if (error) {
+        this.logger.error(`Failed to send email to ${to}:`, error);
+        throw error;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      this.logger.log(`Email sent successfully to ${to}, ID: ${data?.id}`);
+    } catch (error) {
+      this.logger.error(`Error sending email to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Send OTP verification email
    */
   async sendOtpEmail(params: SendOtpEmailParams): Promise<void> {

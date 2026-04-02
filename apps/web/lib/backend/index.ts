@@ -40,12 +40,14 @@ export { BillingClient } from './billing';
 export { ActivityClient } from './activity';
 export { MemberClient } from './member';
 export { AiClient } from './ai';
+export { InvitationClient } from './invitation';
 export * from './types';
 export type { Document, UpdateDocumentDraftDto, ListDocumentsQuery } from './document';
 export type { CompanyCredit, CreditTransaction, TopUpCreditDto, ListTransactionsQuery } from './billing';
 export type { ActivityLog, ListActivityQuery } from './activity';
 export type { CompanyMember, MemberRole, InviteMemberDto, UpdateMemberRoleDto } from './member';
 export type { OcrPresignResponse, OcrJobStatus, GLStatus, GLTransaction, GLTransactionsResponse, Account, LlmUsage } from './ai';
+export type { Invitation, CreateInvitationDto as CreateInvitationBody } from './invitation';
 
 import { BackendConfig } from './types';
 import { AuthClient } from './auth';
@@ -59,6 +61,7 @@ import { BillingClient } from './billing';
 import { ActivityClient } from './activity';
 import { MemberClient } from './member';
 import { AiClient } from './ai';
+import { InvitationClient } from './invitation';
 
 /**
  * Unified Backend Client
@@ -76,6 +79,7 @@ export class BackendClient {
   public activity: ActivityClient;
   public member: MemberClient;
   public ai: AiClient;
+  public invitation: InvitationClient;
 
   constructor(config: BackendConfig = {}) {
     this.auth = new AuthClient(config);
@@ -89,6 +93,7 @@ export class BackendClient {
     this.activity = new ActivityClient(config);
     this.member = new MemberClient(config);
     this.ai = new AiClient(config);
+    this.invitation = new InvitationClient(config);
   }
 }
 

@@ -28,7 +28,9 @@ See `.github/copilot-instructions.md` → "Progress Tracking" section for the fu
 | 7 | [007-fixing-e2e-test-infrastructure.md](./007-fixing-e2e-test-infrastructure.md) | E2E test infra fixed (ts-jest, mock email, DB migrations) |
 | 8 | [008-phase-4-all-tests-passing.md](./008-phase-4-all-tests-passing.md) | All 73 backend E2E tests passing ✅ |
 | 9 | [009-checkpoints-to-project-frontend-sync.md](./009-checkpoints-to-project-frontend-sync.md) | Checkpoints in project repo, frontend TS clean, Playwright auth fixed ✅ |
-| 10 | [010-frontend-api-alignment.md](./010-frontend-api-alignment.md) | **CURRENT** — Frontend API alignment: documents response fix, sidebar cleanup, ledger page full refactor ✅ |
+| 10 | [010-frontend-api-alignment.md](./010-frontend-api-alignment.md) | Frontend API alignment: documents response fix, sidebar cleanup, ledger page full refactor ✅ |
+| 11 | [011-phase-5-6-invitation-session-gl.md](./011-phase-5-6-invitation-session-gl.md) | Phase 5 (Invitation): schema+migration+backend module+frontend UI ✅. Phase 6 (Session=GL): session scoping fix, AI proxy bridge fields, /ledger list+detail pages, sidebar dynamic sessions ✅ |
+| 12 | [012-schema-refactor-ledger-file-merge.md](./012-schema-refactor-ledger-file-merge.md) | **CURRENT** — Schema refactor: Added `ledger` table, merged `File` into `Document`, removed `fiscalYear` from Session, expanded ChatRole enum. Full backend Phase 2 done (Ledger module + all services updated). Build: ✅ 0 errors |
 
 ---
 

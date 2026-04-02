@@ -1,11 +1,15 @@
 # Database Schema (Current AWS Build)
 
 System: Receipt OCR AI Categoriser  
-Last Updated: March 21, 2026  
+Last Updated: March 24, 2026  
 Primary DB: AWS RDS PostgreSQL (Django ORM)  
 Additional stores: DynamoDB (state/checkpoints), S3 (artifacts)
 
 This document is the source-of-truth schema reference for backend developers, aligned with the current implementation.
+
+Important note:
+- This document distinguishes between the **current deployed schema** and **recommended future backend-alignment fields**.
+- Unless a field is listed under the “Recommended Future Bridge Fields” section, assume it is part of the current deployed RDS schema.
 
 ## 1. Storage Architecture
 
@@ -260,6 +264,84 @@ Columns:
 
 Constraints:
 - unique_together: (tenant_id, user_id, fiscal_year)
+
+---
+
+### Table: gl_persistent_accounts
+Purpose: database-backed GL account balances; crash-proof balance tracking.
+
+Columns:
+- id (PK)
+- tenant_id (varchar128)
+- user_id (varchar128)
+- fiscal_year (int)
+- account_code (varchar64)
+- account_name (varchar256)
+- account_type (varchar64)
+- normal_balance (varchar8, default "Debit")
+- opening_balance (decimal18,2)
+- current_balance (decimal18,2)
+- period_debits (decimal18,2)
+- period_credits (decimal18,2)
+- is_active (bool)
+- updated_at
+
+Constraints:
+- unique_together: (tenant_id, user_id, fiscal_year, account_code)
+
+Indexes:
+- (tenant_id, user_id, fiscal_year)
+- (tenant_id, user_id, fiscal_year, is_active)
+
+---
+
+### Table: gl_journal_entries
+Purpose: header for posted journal entries; each has balanced lines.
+
+Columns:
+- id (PK)
+- entry_id (varchar128, unique)
+- tenant_id (varchar128)
+- user_id (varchar128)
+- fiscal_year (int)
+- fiscal_period (int, nullable)
+- journal_type (varchar32)
+- reference (varchar256)
+- description (text)
+- entry_date (date)
+- posted_at (datetime)
+- is_balanced (bool)
+- source (varchar32: api, chatbot, bulk_import, session)
+- doc_id (varchar128, nullable)
+- session_id (varchar128, nullable)
+- supplier_name (varchar256)
+- invoice_number (varchar128)
+- currency (varchar8, default "MYR")
+- total_amount (decimal18,2)
+
+Indexes:
+- (tenant_id, user_id, fiscal_year)
+- (tenant_id, user_id, entry_date)
+- (tenant_id, supplier_name)
+- (tenant_id, reference)
+
+---
+
+### Table: gl_journal_lines
+Purpose: individual debit/credit lines within a journal entry.
+
+Columns:
+- id (PK)
+- journal_entry_id (FK to gl_journal_entries)
+- account_code (varchar64)
+- account_name (varchar256)
+- debit (decimal18,2)
+- credit (decimal18,2)
+- description (text)
+- counterparty_account (varchar256)
+
+Indexes:
+- (account_code)
 
 ## 2.4 Learning and Enrichment Domain
 
@@ -523,7 +605,47 @@ Indexes:
 - (tenant_id, doc_id)
 - (tenant_id, review_status)
 
-## 2.5 Core Observability Domain
+## 2.5 Export Domain
+
+### Table: autocount_export_batches
+Purpose: tracks each AutoCount purchase invoice export run.
+
+Columns:
+- id (PK)
+- batch_id (varchar128, unique, indexed)
+- tenant_id (varchar128, indexed)
+- exported_by (varchar128)
+- document_count (int)
+- skipped_count (int)
+- generated_filename (varchar512)
+- exported_at (datetime)
+
+Indexes:
+- (tenant_id, exported_at)
+
+---
+
+### Table: autocount_export_items
+Purpose: links confirmed documents to an export batch and prevents double export.
+
+Columns:
+- id (PK)
+- batch_id (FK to autocount_export_batches)
+- tenant_id (varchar128)
+- doc_id (varchar128)
+- confirmed_document_id (int)
+- export_status (varchar16)
+- skip_reason (text)
+- exported_at (datetime)
+
+Constraints:
+- unique_together: (tenant_id, doc_id)
+
+Indexes:
+- (tenant_id, export_status)
+- (batch)
+
+## 2.6 Core Observability Domain
 
 ### Table: core_auditlog
 Purpose: request-level audit trail emitted by middleware.
@@ -547,7 +669,7 @@ Indexes:
 - (tenant_id, timestamp)
 - (status_code, timestamp)
 
-## 2.6 Legacy Session Domain
+## 2.7 Legacy Session Domain
 
 ### Table: sessions_session
 Purpose: legacy session state storage (non-chatbot session service).
@@ -634,6 +756,7 @@ These are referenced by API payloads and RDS fields such as:
 Primary doc-centric linkage:
 - OCR job and enrichment outputs converge on `(tenant_id, doc_id)`.
 - Confirmed document snapshots and field feedback trace back to document identity.
+- AutoCount export tracking links confirmed documents to export batches through `autocount_export_items`.
 - Chat callbacks and chat status views bridge doc processing and conversation thread state.
 
 Operational GL linkage:
@@ -648,7 +771,54 @@ Operational GL linkage:
 - Keep compatibility in mind for API payload aliases (`tenantId` and `tenant_id`, etc.) where used by ingestion flows.
 - If adding new high-volume tables, include composite indexes for tenant and time-range queries.
 
-## 6. Related Diagram
+## 6. Schema Ownership Boundary
+
+This service and the backend platform maintain **separate databases** with distinct ownership domains:
+
+### Backend Platform Owns (NOT in this DB)
+- Company, User, CompanyMember, Credential, VerificationToken
+- Session (workspace sessions), ChatMessage (platform-level)
+- File (platform file storage)
+- Account (canonical GL accounts), Document (platform document lifecycle)
+- JournalEntry / JournalEntryLine (canonical ledger)
+- CompanyCredit, CreditTransaction
+- ActivityLog
+
+### This AI Service Owns
+- OCR pipeline: OCRJob, Document (AI extraction lifecycle), OCRResult, ParsedField
+- Categorisation: TenantChartOfAccounts, TenantCategorisationRule, HistoricalMapping, CategorisationResult, SummaryResult
+- Confirmed documents: ConfirmedDocument, FieldFeedback
+- AI learning: TenantKnowledge, GoldenExample, UserProfile, ExtractionRule, StrategyPerformance
+- GL persistence: PersistentGLAccount, PersistentJournalEntry, PersistentJournalLine, GLPostingEntry, UserGLProfile
+- Chat: ChatSession, ChatMessage, JobCallback, ExpenseRecord, FeedbackSubmission, TenantLLMUsage
+- Export: AutoCountExportBatch, AutoCountExportItem
+- Observability: AuditLog
+
+### Recommended Future Bridge Fields (NOT yet implemented in current RDS)
+These are the safest bridge fields to add later if backend/platform traceability becomes mandatory.
+They are **not** part of the current deployed schema unless corresponding migrations are applied.
+
+| AI Service Table | Bridge Field | Maps To (Backend) |
+|---|---|---|
+| `documents` | `external_file_id` | `File.id` |
+| `documents` | `external_session_id` | `Session.id` |
+| `documents` | `document_type` | `Document.documentType` |
+| `documents` | `error_message` | `Document.errorMessage` |
+| `documents` | `approved_at` / `approved_by` | approval metadata |
+| `tenant_chart_of_accounts` | `external_account_id` | `Account.id` |
+| `tenant_chart_of_accounts` | `parent_account_code` | account hierarchy |
+| `tenant_chart_of_accounts` | `description` / `is_system` / `deleted_at` | account metadata |
+| `gl_journal_entries` | `external_journal_entry_id` | `JournalEntry.id` |
+| `gl_journal_entries` | `lifecycle_status` / `posted_by` / `voided_at` / `voided_by` / `deleted_at` | journal lifecycle |
+| `gl_journal_lines` | `sort_order` | document line ordering |
+| `gl_journal_lines` | `external_account_id` | `Account.id` |
+
+Shared identifiers (already present, no new columns needed):
+- `tenant_id` = backend `Company.id`
+- `user_id` = backend `User.id`
+- `session_id` = backend `Session.id` (for chat and legacy sessions)
+
+## 7. Related Diagram
 
 For visual ERD and AWS store mapping, see:
 - [docs-repo/diagrams/DATABASE_ERD_DIAGRAM.md](docs-repo/diagrams/DATABASE_ERD_DIAGRAM.md)

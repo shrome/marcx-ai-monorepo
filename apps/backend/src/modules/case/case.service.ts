@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateCaseDto, UpdateCaseDto } from './dto/case.dto';
 import { db, eq, and } from '@marcx/db';
-import { session, file } from '@marcx/db/schema';
+import { session, document } from '@marcx/db/schema';
 import { FileStorageService } from '../../services/file-storage.service';
 
 @Injectable()
@@ -32,21 +32,25 @@ export class CaseService {
         `session/${newSession.id}/raw`,
       );
 
-      await db.insert(file).values(
+      await db.insert(document).values(
         uploadedFiles.map((uploadedFile) => ({
+          companyId: newSession.companyId,
           sessionId: newSession.id,
-          chatId: null,
+          uploadedBy: userId,
           name: uploadedFile.name,
           url: uploadedFile.url,
           size: uploadedFile.size,
           mimeType: uploadedFile.type,
+          uploadSource: 'upload' as const,
+          extractionStatus: 'PENDING' as const,
+          documentStatus: 'DRAFT' as const,
         })),
       );
     }
 
     return db.query.session.findFirst({
       where: eq(session.id, newSession.id),
-      with: { creator: true, files: true },
+      with: { creator: true },
     });
   }
 
@@ -63,7 +67,7 @@ export class CaseService {
         eq(session.id, id),
         eq(session.creatorId, userId),
       ),
-      with: { creator: true, files: true },
+      with: { creator: true },
     });
 
     if (!caseRecord) {
@@ -127,21 +131,25 @@ export class CaseService {
       `session/${sessionId}/raw`,
     );
 
-    // Save file records to database
-    const newFiles = await db
-      .insert(file)
+    // Save as Document records (File table removed)
+    const newDocs = await db
+      .insert(document)
       .values(
         uploadedFiles.map((uploadedFile) => ({
+          companyId: caseRecord.companyId,
           sessionId,
-          chatId: null,
+          uploadedBy: userId,
           name: uploadedFile.name,
           url: uploadedFile.url,
           size: uploadedFile.size,
           mimeType: uploadedFile.type,
+          uploadSource: 'upload' as const,
+          extractionStatus: 'PENDING' as const,
+          documentStatus: 'DRAFT' as const,
         })),
       )
       .returning();
 
-    return newFiles;
+    return newDocs;
   }
 }

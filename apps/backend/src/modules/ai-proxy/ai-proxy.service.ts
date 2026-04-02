@@ -13,10 +13,18 @@ export class AiProxyService {
 
   // ── OCR Pipeline ─────────────────────────────────────────────────────────
 
-  async ocrPresign(body: { filename: string; contentType: string }, userId: string) {
+  async ocrPresign(
+    body: { filename: string; contentType: string; sessionId?: string; fileId?: string },
+    userId: string,
+  ) {
     const { tenantId } = await this.tenantResolver.resolve(userId);
     this.logger.log(`OCR presign for tenant ${tenantId}: ${body.filename}`);
-    return this.aiApiClient.post('/api/ocr/presign', { tenantId, userId }, body);
+    return this.aiApiClient.post('/api/ocr/presign', { tenantId, userId }, {
+      ...body,
+      // Bridge fields for cross-system traceability
+      ...(body.sessionId && { sessionId: body.sessionId }),
+      ...(body.fileId && { fileId: body.fileId }),
+    });
   }
 
   async ocrJobStatus(docId: string, userId: string) {

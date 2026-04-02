@@ -34,7 +34,7 @@ export class AiProxyController {
   @ApiResponse({ status: 400, description: 'filename and contentType are required' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   ocrPresign(
-    @Body() body: { filename: string; contentType: string },
+    @Body() body: { filename: string; contentType: string; sessionId?: string; fileId?: string },
     @Request() req: RequestWithUser,
   ) {
     if (!body.filename || !body.contentType) {

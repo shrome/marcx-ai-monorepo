@@ -11,7 +11,7 @@ You are a Senior Full-Stack Engineer and Architect. We have an existing codebase
 - **Backend:** Nest.js (Modular Architecture)
 - **Database:** PostgreSQL — accessed via the shared `@marcx/db` package (Drizzle ORM)
 - **Storage:** AWS S3 (Presigned URLs for upload/download — never expose raw S3 paths)
-- **3rd Party AI API:** Specs live under `/ai-api`. Currently no live domain — use placeholder URLs for now.
+- **3rd Party AI API:** Specs live under `/ai-api`. Live domain: `http://chatbot-alb-dev-343845085.ap-southeast-1.elb.amazonaws.com`
 
 # Project Status
 
@@ -63,6 +63,54 @@ You are a Senior Full-Stack Engineer and Architect. We have an existing codebase
 
 - **Tenant = Company.** In the AI API docs, "tenant" means a Company in our schema. All data must be scoped by `companyId`.
 - All backend queries must filter by `companyId`. Strict isolation between companies is required.
+
+## Session = General Ledger (GL)
+
+> **🚨 CRITICAL ARCHITECTURE RULE — Every engineer and AI agent must understand this.**
+
+A `Session` in our schema IS a General Ledger. When a user creates a session (via Chat), they are creating a ledger context. All chat messages and documents within that session are interactions within that GL.
+
+- **`/ledger/[id]`** is the main ledger detail page. `[id]` = `session.id`.
+- **`/ledger`** lists all sessions as "ledger books" (filtered by those with `fiscalYear` set).
+- **`/chat`** is where sessions are created and where users upload documents / interact with the AI.
+- Documents belong to a session (`document.sessionId`). The Tasks tab on the ledger page shows documents in that session.
+- The GL data (trial balance, transactions) is fetched from the AI API using the session's `fiscalYear` + company's `tenantId`.
+
+## AI API Identity & Header Mapping
+
+Our NestJS backend is the **gateway** — the frontend never talks to the AI API directly.
+
+### Header Convention
+| Header | Value | Notes |
+|--------|-------|-------|
+| `x-tenant-id` | `company.id` (UUID) | Resolved from user's `CompanyMember` record. `x-company-id` is also accepted as alias. |
+| `x-user-id` | `user.id` (UUID) | Extracted from JWT token. |
+| `x-ledger-scope-id` | Optional (defaults to `tenant_id`) | Used for sub-company GL scoping. Not currently passed — add when needed. |
+
+### Identity Resolution Flow
+```
+JWT → req.user.id → TenantResolverService.resolve(userId) 
+  → query CompanyMember WHERE userId = ? 
+  → return companyId as tenantId
+```
+
+### Bridge Fields (Our DB ↔ AI API DB)
+| Our Field | AI API Field | Purpose |
+|-----------|-------------|---------|
+| `session.id` | `external_session_id` | Cross-system traceability for chat sessions |
+| `file.id` | `external_file_id` | Cross-system traceability for uploaded files |
+| `company.id` | `tenant_id` | Tenant identity |
+| `user.id` | `user_id` | User identity |
+| `session.fiscalYear` | `fiscal_year` (query/body param) | GL scoping — data scoped by `(tenant_id, ledger_scope_id, fiscal_year)` |
+
+### Key AI API Endpoint Categories
+| Category | Key Endpoints | Our Proxy Routes |
+|----------|--------------|-----------------|
+| **OCR Pipeline** | `POST /api/ocr/presign`, `GET /api/ocr/jobs/{t}/{d}`, `POST .../run`, `POST .../process` | `POST/GET /ai/ocr/*` |
+| **Document Enrichment** | `POST /api/documents/enrich`, `POST /api/documents/confirm` | `POST /ai/documents/*` |
+| **General Ledger** | `POST /api/gl/upload`, `GET /api/tenants/{t}/gl/status`, `GET .../gl/transactions` | `POST/GET /ai/general-ledger/*` |
+| **Chat (LangGraph)** | `POST /api/chat/sessions`, `POST .../messages`, `GET .../review/{t}/{d}` | `POST/GET /ai/chat/*` |
+| **Tenant Admin** | `GET/POST /api/tenants/{t}/chart-of-accounts`, `GET/PUT .../llm/usage` | `GET/POST /ai/chart-of-accounts`, `/ai/llm/usage` |
 
 ## Database & Schema (`@marcx/db`)
 
@@ -140,6 +188,10 @@ src/modules/<feature>/
 
 - **Case module is deprecated** — `apps/backend/src/modules/case/` still compiles but is not in the product roadmap. Do not add features to it.
 - **Webhooks are deferred** — Webhook endpoints for AI-API callbacks are not in scope until Jason explicitly approves. The system works via polling / synchronous proxy calls for now.
+- **AI API Base URL** — `http://chatbot-alb-dev-343845085.ap-southeast-1.elb.amazonaws.com` (live AWS ALB, may change if ALB is recreated). Set via `AI_API_BASE_URL` env var.
+- **GL data is NOT stored in our DB** — The AI API owns all GL data (trial balance, journal entries, transactions). Our backend proxies GL queries to the AI API. Our `Session.fiscalYear` tells us which fiscal year to query.
+- **Document approval flow** — `PATCH /documents/:id` saves draftData/notes → `POST /documents/:id/approve` copies draftData→approvedData (immutable). This is separate from the AI enrichment pipeline.
+- **Invitation feature** — Full email invitation flow (invite link via email, works even if user doesn't have an account). New `invitation` table + module. Current `inviteMember` in company-member will be augmented.
 
 # Progress Tracking (Model Handoff)
 

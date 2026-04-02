@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { CreateMessageDto } from './dto/chat.dto';
 import { db, eq, and } from '@marcx/db';
-import { chatMessage, session, file, document } from '@marcx/db/schema';
+import { chatMessage, session, document } from '@marcx/db/schema';
 import { FileStorageService } from '../../services/file-storage.service';
 import { AiProxyService } from '../ai-proxy/ai-proxy.service';
 
@@ -43,40 +43,32 @@ export class ChatService {
       })
       .returning();
 
-    // Upload files and auto-create a Document record for each
+    // Upload files and create Document records directly (File table removed)
     if (files && files.length > 0) {
       const uploadedFiles = await this.fileStorageService.uploadFiles(
         files,
         `session/${sessionId}/raw`,
       );
 
-      const fileRecords = await db
-        .insert(file)
-        .values(
-          uploadedFiles.map((uploadedFile) => ({
-            sessionId,
-            chatId: userMessage.id,
-            name: uploadedFile.name,
-            url: uploadedFile.url,
-            size: uploadedFile.size,
-            mimeType: uploadedFile.type,
-          })),
-        )
-        .returning();
-
       await db.insert(document).values(
-        fileRecords.map((fileRecord) => ({
-          fileId: fileRecord.id,
+        uploadedFiles.map((uploadedFile) => ({
           companyId: sessionRecord.companyId,
           sessionId,
+          chatId: userMessage.id,
           uploadedBy: userId,
+          ...(sessionRecord.ledgerId && { ledgerId: sessionRecord.ledgerId }),
+          name: uploadedFile.name,
+          url: uploadedFile.url,
+          size: uploadedFile.size,
+          mimeType: uploadedFile.type,
+          uploadSource: 'chat' as const,
           extractionStatus: 'PENDING' as const,
           documentStatus: 'DRAFT' as const,
         })),
       );
 
       this.logger.log(
-        `Uploaded ${fileRecords.length} file(s) and created Document records for session ${sessionId}`,
+        `Uploaded ${uploadedFiles.length} file(s) and created Document records for session ${sessionId}`,
       );
     }
 
@@ -118,7 +110,7 @@ export class ChatService {
 
     return db.query.chatMessage.findFirst({
       where: eq(chatMessage.id, aiMessage.id),
-      with: { files: true, user: true },
+      with: { documents: true, user: true },
     });
   }
 
@@ -133,7 +125,7 @@ export class ChatService {
 
     return db.query.chatMessage.findMany({
       where: eq(chatMessage.sessionId, sessionId),
-      with: { user: true, files: true },
+      with: { user: true, documents: true },
       orderBy: (messages, { asc }) => [asc(messages.createdAt)],
     });
   }
@@ -179,36 +171,31 @@ export class ChatService {
       `session/${sessionId}/raw`,
     );
 
-    const fileRecords = await db
-      .insert(file)
+    const docRecords = await db
+      .insert(document)
       .values(
         uploadedFiles.map((uploadedFile) => ({
+          companyId: message.session.companyId,
           sessionId,
           chatId,
+          uploadedBy: userId,
+          ...(message.session.ledgerId && { ledgerId: message.session.ledgerId }),
           name: uploadedFile.name,
           url: uploadedFile.url,
           size: uploadedFile.size,
           mimeType: uploadedFile.type,
+          uploadSource: 'chat' as const,
+          extractionStatus: 'PENDING' as const,
+          documentStatus: 'DRAFT' as const,
         })),
       )
       .returning();
 
-    await db.insert(document).values(
-      fileRecords.map((fileRecord) => ({
-        fileId: fileRecord.id,
-        companyId: message.session.companyId,
-        sessionId,
-        uploadedBy: userId,
-        extractionStatus: 'PENDING' as const,
-        documentStatus: 'DRAFT' as const,
-      })),
-    );
-
     this.logger.log(
-      `Added ${fileRecords.length} attachment(s) and created Document records for session ${sessionId}`,
+      `Added ${docRecords.length} attachment(s) and created Document records for session ${sessionId}`,
     );
 
-    return fileRecords;
+    return docRecords;
   }
 }
 

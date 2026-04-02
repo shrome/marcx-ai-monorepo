@@ -489,7 +489,7 @@ function GLUploadModal({
 
 // ─── Main LedgerPage ───────────────────────────────────────────────────────
 
-export function LedgerPage() {
+export function LedgerPage({ sessionId }: { sessionId: string }) {
   const { user } = useAuth()
   // companyId is scoped by JWT on the backend; kept here for future use
   const _companyId = user?.companyId ?? ""
@@ -499,7 +499,11 @@ export function LedgerPage() {
 
   const { data: glStatus } = useGLStatus()
   const { data: glTransactions, isLoading: glLoading } = useGLTransactions({ limit: 100 })
-  const { data: documents = [] } = useDocuments()
+  const { data: allDocuments = [], isLoading: docsLoading } = useDocuments()
+
+  // Filter documents to only those belonging to this session
+  const documents = allDocuments.filter((d) => d.sessionId === sessionId)
+
   const exportGL = useExportGL()
 
   // Convert real GL transactions to LedgerRow format for the table
@@ -614,7 +618,7 @@ export function LedgerPage() {
             isLoading={glLoading}
           />
         ) : (
-          <TasksTab documents={documents} />
+          <TasksTab documents={documents} isLoading={docsLoading} />
         )}
       </div>
 

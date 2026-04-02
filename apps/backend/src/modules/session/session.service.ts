@@ -1,40 +1,29 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSessionDto, UpdateSessionDto, CreateChatSessionDto } from './dto/session.dto';
-
 import { db, eq, and } from '@marcx/db';
-import { session, user } from '@marcx/db/schema';
+import { session, user, companyMember } from '@marcx/db/schema';
 
 @Injectable()
 export class SessionService {
   async createChatSession(data: CreateChatSessionDto, userId: string) {
-    // Get user with membership information
     const foundUser = await db.query.user.findFirst({
       where: eq(user.id, userId),
-      with: {
-        memberships: true,
-      },
+      with: { memberships: true },
     });
 
-    if (!foundUser) {
-      throw new NotFoundException('User not found');
-    }
+    if (!foundUser) throw new NotFoundException('User not found');
 
     const membership = foundUser.memberships?.[0];
-    if (!membership) {
-      throw new NotFoundException('User does not have an associated company');
-    }
-
-    // Create chat session
-    const sessionTitle = data.title?.trim() || 'New Chat';
+    if (!membership) throw new NotFoundException('User does not have an associated company');
 
     const [newSession] = await db
       .insert(session)
       .values({
         companyId: membership.companyId,
         creatorId: userId,
-        title: sessionTitle,
+        title: data.title?.trim() || 'New Chat',
         status: 'open',
-        fiscalYear: data.fiscalYear,
+        ...(data.ledgerId && { ledgerId: data.ledgerId }),
       })
       .returning();
 
@@ -42,7 +31,6 @@ export class SessionService {
   }
 
   async create(createSessionDto: CreateSessionDto, userId: string) {
-    // Resolve companyId from user membership if not provided
     let companyId = createSessionDto.companyId;
 
     if (!companyId) {
@@ -63,51 +51,58 @@ export class SessionService {
         creatorId: userId,
         title: createSessionDto.title,
         description: createSessionDto.description,
-        fiscalYear: createSessionDto.fiscalYear,
         status: 'open',
+        ...(createSessionDto.ledgerId && { ledgerId: createSessionDto.ledgerId }),
       })
       .returning();
 
     return newSession;
   }
 
-  async findAll(userId: string) {
+  async findAll(userId: string, ledgerId?: string) {
+    const membership = await db.query.companyMember.findFirst({
+      where: eq(companyMember.userId, userId),
+    });
+
+    if (!membership) throw new NotFoundException('User does not have an associated company');
+
+    const conditions = ledgerId
+      ? and(eq(session.companyId, membership.companyId), eq(session.ledgerId, ledgerId))
+      : eq(session.companyId, membership.companyId);
+
     return db.query.session.findMany({
-      where: eq(session.creatorId, userId),
-      with: { creator: true },
+      where: conditions,
+      with: { creator: true, ledger: true },
+      orderBy: (s, { desc }) => [desc(s.createdAt)],
     });
   }
 
   async findOne(id: string, userId: string) {
-    const sessionRecord = await db.query.session.findFirst({
-      where: and(eq(session.id, id), eq(session.creatorId, userId)),
-      with: { creator: true, chatMessages: true, files: true },
+    const membership = await db.query.companyMember.findFirst({
+      where: eq(companyMember.userId, userId),
     });
 
-    if (!sessionRecord) {
-      throw new NotFoundException('Session not found');
-    }
+    if (!membership) throw new NotFoundException('User does not have an associated company');
+
+    const sessionRecord = await db.query.session.findFirst({
+      where: and(eq(session.id, id), eq(session.companyId, membership.companyId)),
+      with: { creator: true, chatMessages: true, documents: true, ledger: true },
+    });
+
+    if (!sessionRecord) throw new NotFoundException('Session not found');
 
     return sessionRecord;
   }
 
   async update(id: string, updateSessionDto: UpdateSessionDto, userId: string) {
-    // Verify access
     await this.findOne(id, userId);
-
-    // Update session
     await db.update(session).set(updateSessionDto).where(eq(session.id, id));
-
     return this.findOne(id, userId);
   }
 
   async remove(id: string, userId: string) {
-    // Verify access
     await this.findOne(id, userId);
-
-    // Delete session (cascading deletes will handle related records)
     await db.delete(session).where(eq(session.id, id));
-
     return { message: 'Session deleted successfully' };
   }
 }

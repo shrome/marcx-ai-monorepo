@@ -8,8 +8,9 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { SessionService } from './session.service';
 import {
   CreateSessionDto,
@@ -57,11 +58,12 @@ export class SessionController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all sessions for current user' })
+  @ApiOperation({ summary: 'List all sessions for the current user\'s company' })
+  @ApiQuery({ name: 'ledgerId', required: false, type: String, description: 'Filter by ledger ID' })
   @ApiResponse({ status: 200, description: 'Sessions list returned' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll(@Request() req: RequestWithUser) {
-    return this.sessionService.findAll(req.user.id);
+  findAll(@Request() req: RequestWithUser, @Query('ledgerId') ledgerId?: string) {
+    return this.sessionService.findAll(req.user.id, ledgerId);
   }
 
   @Get(':id')

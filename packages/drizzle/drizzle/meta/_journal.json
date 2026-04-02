@@ -29,6 +29,20 @@
       "when": 1774425387596,
       "tag": "0003_revamp_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774663953059,
+      "tag": "0004_daffy_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1774920839215,
+      "tag": "0005_add_ledger_merge_file_into_document",
+      "breakpoints": true
     }
   ]
 }

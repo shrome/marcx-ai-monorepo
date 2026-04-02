@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { db, eq, and, isNull } from '@marcx/db';
-import { file, document } from '@marcx/db/schema';
+import { document } from '@marcx/db/schema';
 import {
   CreateDocumentDto,
   UpdateDocumentDto,
@@ -30,7 +30,6 @@ export class DocumentService {
     userId: string,
     companyId: string,
   ) {
-    // Upload file to S3
     let fileInfo: UploadedFileInfo;
     try {
       fileInfo = await this.fileStorageService.uploadFile(
@@ -42,26 +41,19 @@ export class DocumentService {
       throw new BadRequestException('File upload failed. Please try again.');
     }
 
-    // Insert File record
-    const [fileRecord] = await db
-      .insert(file)
+    // Insert Document record with file fields inlined (File table removed)
+    const [docRecord] = await db
+      .insert(document)
       .values({
+        companyId,
         sessionId: dto.sessionId,
+        uploadedBy: userId,
+        ...(dto.ledgerId && { ledgerId: dto.ledgerId }),
         name: fileInfo.name,
         url: fileInfo.url,
         size: fileInfo.size,
         mimeType: fileInfo.type,
-      })
-      .returning();
-
-    // Insert Document record (PENDING extraction)
-    const [docRecord] = await db
-      .insert(document)
-      .values({
-        fileId: fileRecord.id,
-        companyId,
-        sessionId: dto.sessionId,
-        uploadedBy: userId,
+        uploadSource: 'upload',
         documentType: dto.documentType ?? 'OTHER',
         extractionStatus: 'PENDING',
         documentStatus: 'DRAFT',
@@ -94,13 +86,14 @@ export class DocumentService {
     ];
 
     if (query.sessionId) conditions.push(eq(document.sessionId, query.sessionId));
+    if (query.ledgerId) conditions.push(eq(document.ledgerId, query.ledgerId));
     if (query.documentType) conditions.push(eq(document.documentType, query.documentType));
     if (query.extractionStatus) conditions.push(eq(document.extractionStatus, query.extractionStatus));
     if (query.documentStatus) conditions.push(eq(document.documentStatus, query.documentStatus));
 
     const documents = await db.query.document.findMany({
       where: and(...conditions),
-      with: { file: true },
+      with: { session: true, ledger: true },
       orderBy: (doc, { desc }) => [desc(doc.createdAt)],
       limit,
       offset,
@@ -116,7 +109,7 @@ export class DocumentService {
         eq(document.companyId, companyId),
         isNull(document.deletedAt),
       ),
-      with: { file: true, session: true },
+      with: { session: true, ledger: true },
     });
 
     if (!doc) {
@@ -126,11 +119,7 @@ export class DocumentService {
     return doc;
   }
 
-  async updateDraft(
-    id: string,
-    companyId: string,
-    dto: UpdateDocumentDto,
-  ) {
+  async updateDraft(id: string, companyId: string, dto: UpdateDocumentDto) {
     await this.findOne(id, companyId);
 
     await db
@@ -230,21 +219,15 @@ export class DocumentService {
     return this.findOne(id, companyId);
   }
 
-  async updateExtractionFailed(
-    id: string,
-    companyId: string,
-    errorMessage: string,
-  ) {
+  async updateExtractionFailed(id: string, companyId: string, errorMessage: string) {
     await this.findOne(id, companyId);
 
     await db
       .update(document)
-      .set({
-        extractionStatus: 'FAILED',
-        errorMessage,
-      })
+      .set({ extractionStatus: 'FAILED', errorMessage })
       .where(eq(document.id, id));
 
     this.logger.warn(`Extraction failed for document ${id}: ${errorMessage}`);
   }
 }
+

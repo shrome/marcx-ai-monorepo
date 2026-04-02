@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation"
+import { LedgerPage } from "@/components/ledger/LedgerPage"
 
-export default function LedgerDetailRoute() {
-  redirect("/ledger")
+interface Props {
+  params: Promise<{ id: string }>
+}
+
+export default async function LedgerDetailRoute({ params }: Props) {
+  const { id } = await params
+  return <LedgerPage sessionId={id} />
 }

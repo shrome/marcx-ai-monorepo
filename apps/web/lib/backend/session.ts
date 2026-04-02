@@ -17,12 +17,14 @@ export class SessionClient extends Backend {
   }
 
   /**
-   * Get all sessions for the current user
-   * @param type Optional filter by session type (CHAT or CASE)
+   * Get all sessions for the current user's company
+   * @param fiscalYear Optional filter by fiscal year (for GL/ledger sessions)
    */
-  async findAll(type?: 'CHAT' | 'CASE'): Promise<Session[]> {
-    const endpoint = type ? `/sessions?type=${type}` : '/sessions';
-    return this.get<Session[]>(endpoint);
+  async findAll(fiscalYear?: number): Promise<Session[]> {
+    const params = new URLSearchParams();
+    if (fiscalYear) params.set('fiscalYear', String(fiscalYear));
+    const qs = params.toString();
+    return this.get<Session[]>(qs ? `/sessions?${qs}` : '/sessions');
   }
 
   /**
