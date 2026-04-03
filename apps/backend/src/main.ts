@@ -43,32 +43,31 @@ async function bootstrap() {
   );
 
   // OpenAPI / Scalar docs (non-production only)
-  if (process.env.NODE_ENV !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('Marcx AI API')
-      .setDescription('AI-powered accounting ledger platform API')
-      .setVersion('1.0')
-      .addBearerAuth(
-        { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-        'access-token',
-      )
-      .build();
+  const config = new DocumentBuilder()
+    .setTitle('Marcx AI API')
+    .setDescription('AI-powered accounting ledger platform API')
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'access-token',
+    )
+    .build();
 
-    const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, config);
 
-    // Raw OpenAPI JSON + Swagger UI at /api/docs/swagger
-    SwaggerModule.setup('api/docs/swagger', app, document);
+  // Raw OpenAPI JSON + Swagger UI at /api/docs/swagger
+  SwaggerModule.setup('api/docs/swagger', app, document);
 
-    // Scalar UI via CDN — avoids ESM/CJS conflict from the npm package
-    const openApiJsonPath = '/api/docs/swagger-json';
-    SwaggerModule.setup('api/docs/swagger', app, document, {
-      jsonDocumentUrl: openApiJsonPath,
-    });
+  // Scalar UI via CDN — avoids ESM/CJS conflict from the npm package
+  const openApiJsonPath = '/api/docs/swagger-json';
+  SwaggerModule.setup('api/docs/swagger', app, document, {
+    jsonDocumentUrl: openApiJsonPath,
+  });
 
-    const httpAdapter = app.getHttpAdapter();
-    httpAdapter.get('/api/docs', (_req: Request, res: Response) => {
-      res.setHeader('Content-Type', 'text/html');
-      res.send(`<!doctype html>
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/api/docs', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`<!doctype html>
 <html>
   <head>
     <title>Marcx AI — API Reference</title>
@@ -84,8 +83,7 @@ async function bootstrap() {
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>
 </html>`);
-    });
-  }
+  });
 
   await app.listen(process.env.PORT ?? 4000);
 }
