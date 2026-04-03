@@ -6,9 +6,15 @@ on:
       - main
     paths:
       - 'apps/backend/**'
-      - 'packages/drizzle/**'
-      - '.docker/backend/Dockerfile'
-      - 'docker-compose.yml'
+      - 'packages/**'
+      - '.docker/**'
+      - 'docker-compose*.yml'
+      - 'Caddyfile'
+      - 'scripts/**'
+      - 'turbo.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/**'
 
 permissions:
   contents: read
