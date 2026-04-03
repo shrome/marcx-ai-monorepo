@@ -1,9 +1,14 @@
-name: 'Build & Deploy (Staging)'
+name: 'Deploy Backend (Staging)'
 
-on: 
+on:
   push:
     branches:
       - main
+    paths:
+      - 'apps/backend/**'
+      - 'packages/drizzle/**'
+      - '.docker/backend/Dockerfile'
+      - 'docker-compose.yml'
 
 permissions:
   contents: read
@@ -12,10 +17,9 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_BACKEND: ${{ github.repository }}-backend
-  IMAGE_WEB: ${{ github.repository }}-web
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-backend:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,7 +40,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # ───────────────────────────────
-      # Build & Push API
+      # Build & Push Backend
       # ───────────────────────────────
       - name: Build & Push Backend
         uses: docker/build-push-action@v6
@@ -49,25 +53,9 @@ jobs:
             ghcr.io/${{ env.IMAGE_BACKEND }}:${{ github.sha }}
 
       # ───────────────────────────────
-      # Build & Push Web
+      # Deploy Backend to EC2
       # ───────────────────────────────
-      - name: Build & Push Web
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./.docker/web/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ env.IMAGE_WEB }}:latest
-            ghcr.io/${{ env.IMAGE_WEB }}:${{ github.sha }}
-          build-args: |
-            API_URL=${{ vars.API_URL }}
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
-
-      # ───────────────────────────────
-      # Deploy to EC2 (PIPE COMPOSE)
-      # ───────────────────────────────
-      - name: Deploy to EC2
+      - name: Deploy Backend to EC2
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.STAGING_EC2_HOST }}
@@ -75,18 +63,13 @@ jobs:
           key: ${{ secrets.STAGING_EC2_SSH_KEY }}
           script: |
             set -e
-            echo "Deploying on EC2..."
+            echo "Deploying backend on EC2..."
             cd ~/marcx-ai
-            pwd
             test -f .env || (echo ".env missing" && exit 1)
             curl -fsSL \
               https://raw.githubusercontent.com/shrome/marcx-ai-monorepo/${{ github.sha }}/docker-compose.yml \
               -o docker-compose.yml
             echo "Fetched latest docker-compose.yml"
-            curl -fsSL \
-              https://raw.githubusercontent.com/shrome/marcx-ai-monorepo/${{ github.sha }}/Caddyfile \
-              -o Caddyfile
-            echo "Fetched latest Caddyfile"
-            docker compose pull
-            echo "Starting up containers..."
-            docker compose up -d --force-recreate
+            docker compose pull backend
+            echo "Restarting backend container..."
+            docker compose up -d --no-deps --force-recreate backend
