@@ -525,7 +525,7 @@ export function LedgerPage({ ledgerId }: { ledgerId: string }) {
     }
   }
   const { data: glStatus } = useGLStatus()
-  const { data: glTransactions, isLoading: glLoading } = useGLTransactions({ limit: 100 })
+  const { data: glTransactions, isLoading: glLoading } = useGLTransactions({ page_size: 100 })
   const { data: allDocuments = [], isLoading: docsLoading } = useDocuments()
 
   // Filter documents to only those belonging to this ledger
@@ -534,17 +534,17 @@ export function LedgerPage({ ledgerId }: { ledgerId: string }) {
   const exportGL = useExportGL()
 
   // Convert real GL transactions to LedgerRow format for the table
-  const realRows: LedgerRow[] | undefined = glTransactions?.items.map((tx) => ({
+  const realRows: LedgerRow[] | undefined = glTransactions?.rows.map((tx) => ({
     date: new Date(tx.date).toLocaleDateString("en-MY"),
-    account: tx.account,
+    account: tx.account_name ?? tx.account_code,
     description: tx.description,
     debit: tx.debit > 0 ? tx.debit.toLocaleString("en-MY", { minimumFractionDigits: 2 }) : "-",
     credit: tx.credit > 0 ? tx.credit.toLocaleString("en-MY", { minimumFractionDigits: 2 }) : "-",
     balance: tx.balance.toLocaleString("en-MY", { minimumFractionDigits: 2 }),
   }))
 
-  const pageTitle = ledger?.name ?? (glStatus?.initialized
-    ? `General Ledger ${glStatus.fiscalYear ?? ""}`
+  const pageTitle = ledger?.name ?? (glStatus
+    ? `General Ledger ${glStatus.fiscal_year ?? ""}`
     : "General Ledger")
 
   const handleExport = async () => {
@@ -645,17 +645,20 @@ export function LedgerPage({ ledgerId }: { ledgerId: string }) {
       {/* GL status pill */}
       {glStatus && (
         <div className="mx-6 mt-4 px-5 py-3 border-l-[4px] border-l-[#f59e0b] bg-[#f6ead8] flex items-center gap-3 text-sm text-gray-700">
-          {glStatus.initialized ? (
+          {glStatus.summary.entries_count > 0 ? (
             <>
               <CheckCircle className="h-4 w-4 text-green-600" />
               <span className="font-medium">Ledger Summary</span>
-              <span className="text-gray-600">GL initialised · Fiscal year {glStatus.fiscalYear} · {glStatus.transactionCount ?? 0} transactions</span>
+              <span className="text-gray-600">
+                GL active · Fiscal year {glStatus.fiscal_year} · {glStatus.summary.entries_count} entries ·{" "}
+                {glStatus.summary.is_balanced ? "Balanced ✓" : "Unbalanced ⚠️"}
+              </span>
             </>
           ) : (
             <>
               <AlertCircle className="h-4 w-4 text-orange-500" />
               <span className="font-medium">Ledger Summary</span>
-              <span className="text-gray-600">No general ledger uploaded yet</span>
+              <span className="text-gray-600">No entries yet · Fiscal year {glStatus.fiscal_year}</span>
             </>
           )}
         </div>

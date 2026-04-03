@@ -12,17 +12,31 @@ export interface OcrJobStatus {
   error?: string;
 }
 
-export interface GLStatus {
-  initialized: boolean;
-  fiscalYear?: number;
-  transactionCount?: number;
-  lastUpdated?: string;
+export interface GLStatusSummary {
+  total_debits: number;
+  total_credits: number;
+  is_balanced: boolean;
+  entries_count: number;
+  accounts_with_activity: number;
 }
 
-export interface GLTransaction {
-  id: string;
+export interface GLStatus {
+  tenant_id: string;
+  user_id: string;
+  ledger_scope_id: string | null;
+  scope_mode: string;
+  included_ledger_scope_ids: string[];
+  fiscal_year: number;
+  last_updated: string;
+  summary: GLStatusSummary;
+  trial_balance: unknown[];
+  recent_entries: unknown[];
+}
+
+export interface GLTransactionRow {
   date: string;
-  account: string;
+  account_code: string;
+  account_name: string;
   description: string;
   debit: number;
   credit: number;
@@ -30,11 +44,39 @@ export interface GLTransaction {
   reference?: string;
 }
 
-export interface GLTransactionsResponse {
-  items: GLTransaction[];
-  total: number;
+export interface GLTransactionsSummary {
+  total_debits: number;
+  total_credits: number;
+  is_balanced: boolean;
+  accounts_count: number;
+}
+
+export interface GLFilters {
+  account_code: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  include_opening: boolean;
+}
+
+export interface GLPagination {
   page: number;
-  limit: number;
+  page_size: number;
+  total_rows: number;
+  has_next: boolean;
+}
+
+export interface GLTransactionsResponse {
+  tenant_id: string;
+  user_id: string;
+  ledger_scope_id: string | null;
+  scope_mode: string;
+  included_ledger_scope_ids: string[];
+  fiscal_year: number;
+  filters: GLFilters;
+  pagination: GLPagination;
+  summary: GLTransactionsSummary;
+  accounts: unknown[];
+  rows: GLTransactionRow[];
 }
 
 export interface Account {
@@ -94,16 +136,20 @@ export class AiClient extends Backend {
   async getGLTransactions(query?: {
     fiscal_year?: number;
     page?: number;
-    limit?: number;
-    account?: string;
-    type?: 'debit' | 'credit';
+    page_size?: number;
+    account_code?: string;
+    start_date?: string;
+    end_date?: string;
+    include_opening?: boolean;
   }): Promise<GLTransactionsResponse> {
     const params = new URLSearchParams();
     if (query?.fiscal_year) params.set('fiscal_year', String(query.fiscal_year));
     if (query?.page) params.set('page', String(query.page));
-    if (query?.limit) params.set('limit', String(query.limit));
-    if (query?.account) params.set('account', query.account);
-    if (query?.type) params.set('type', query.type);
+    if (query?.page_size) params.set('page_size', String(query.page_size));
+    if (query?.account_code) params.set('account_code', query.account_code);
+    if (query?.start_date) params.set('start_date', query.start_date);
+    if (query?.end_date) params.set('end_date', query.end_date);
+    if (query?.include_opening !== undefined) params.set('include_opening', String(query.include_opening));
     const qs = params.toString();
     return this.get<GLTransactionsResponse>(`/ai/general-ledger/transactions${qs ? `?${qs}` : ''}`);
   }

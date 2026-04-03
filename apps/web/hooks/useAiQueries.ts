@@ -53,9 +53,11 @@ export function useGLStatus(fiscalYear?: number) {
 export function useGLTransactions(filters?: {
   fiscal_year?: number
   page?: number
-  limit?: number
-  account?: string
-  type?: "debit" | "credit"
+  page_size?: number
+  account_code?: string
+  start_date?: string
+  end_date?: string
+  include_opening?: boolean
 }) {
   return useQuery({
     queryKey: aiKeys.glTransactions(filters ?? {}),
