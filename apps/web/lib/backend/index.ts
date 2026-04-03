@@ -41,6 +41,7 @@ export { ActivityClient } from './activity';
 export { MemberClient } from './member';
 export { AiClient } from './ai';
 export { InvitationClient } from './invitation';
+export { LedgerClient } from './ledger';
 export * from './types';
 export type { Document, UpdateDocumentDraftDto, ListDocumentsQuery } from './document';
 export type { CompanyCredit, CreditTransaction, TopUpCreditDto, ListTransactionsQuery } from './billing';
@@ -48,6 +49,7 @@ export type { ActivityLog, ListActivityQuery } from './activity';
 export type { CompanyMember, MemberRole, InviteMemberDto, UpdateMemberRoleDto } from './member';
 export type { OcrPresignResponse, OcrJobStatus, GLStatus, GLTransaction, GLTransactionsResponse, Account, LlmUsage } from './ai';
 export type { Invitation, CreateInvitationDto as CreateInvitationBody } from './invitation';
+export type { Ledger, CreateLedgerDto, UpdateLedgerDto } from './types';
 
 import { BackendConfig } from './types';
 import { AuthClient } from './auth';
@@ -62,6 +64,7 @@ import { ActivityClient } from './activity';
 import { MemberClient } from './member';
 import { AiClient } from './ai';
 import { InvitationClient } from './invitation';
+import { LedgerClient } from './ledger';
 
 /**
  * Unified Backend Client
@@ -80,6 +83,7 @@ export class BackendClient {
   public member: MemberClient;
   public ai: AiClient;
   public invitation: InvitationClient;
+  public ledger: LedgerClient;
 
   constructor(config: BackendConfig = {}) {
     this.auth = new AuthClient(config);
@@ -94,6 +98,7 @@ export class BackendClient {
     this.member = new MemberClient(config);
     this.ai = new AiClient(config);
     this.invitation = new InvitationClient(config);
+    this.ledger = new LedgerClient(config);
   }
 }
 

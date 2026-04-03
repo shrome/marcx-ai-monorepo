@@ -7,13 +7,15 @@
 ### Key Conventions
 
 - **`tenant` = `company`** — The AI-API uses `tenant_id` which maps to our `company.id`. Wherever the AI-API docs say "tenant", it means a Company in our schema.
-- **Session = General Ledger (GL)** — A `Session` IS a general ledger. When a user creates a session (via Chat) with a `fiscalYear`, that session becomes the ledger context. All chat messages and documents within it are interactions within that GL. The `/ledger/[id]` page renders a session's GL view. GL data is fetched from the AI API using the session's `fiscalYear` + company's `tenantId`.
-- **AI API Identity Mapping** — Our backend resolves `companyId` from the user's `CompanyMember` record and passes it as `x-tenant-id` to the AI API. `x-user-id` = `user.id`. Bridge fields: `session.id` → `external_session_id`, `file.id` → `external_file_id`. GL is scoped by `(tenant_id, ledger_scope_id, fiscal_year)`.
+- **Ledger = General Ledger (GL) wrapper** — A `Ledger` is the GL book for a company + fiscal year (unique per company per year). `Session` is a chat thread with an optional `ledgerId` FK. Multiple sessions can belong to one ledger. The `/ledger/[id]` page renders a `Ledger`'s GL view. `[id]` = `ledger.id`.
+- **`File` table removed** — Merged into `Document` (migration `0005`). `Document` now carries file metadata directly (`name`, `url`, `size`, `mimeType`). Never reference a `File` table or `fileId`.
+- **`Session.fiscalYear` removed** — Fiscal year lives on `Ledger.fiscalYear`. Sessions link to ledgers via `session.ledgerId`.
+- **AI API Identity Mapping** — Our backend resolves `companyId` from the user's `CompanyMember` record and passes it as `x-tenant-id` to the AI API. `x-user-id` = `user.id`. Bridge fields: `session.id` → `external_session_id`, `document.id` → `external_file_id`, `ledger.id` → `ledger_scope_id`, `ledger.fiscalYear` → `fiscal_year`. GL is scoped by `(tenant_id, ledger_scope_id, fiscal_year)`.
 - **AI API Base URL** — Live: `http://chatbot-alb-dev-343845085.ap-southeast-1.elb.amazonaws.com`. Set via `AI_API_BASE_URL` env var.
 - **Case module is DEPRECATED** — `apps/backend/src/modules/case/` is no longer active. Do not add new features to it. It will be removed in a future cleanup.
 - **Webhooks are DEFERRED** — Webhook endpoints for AI-API callbacks are not in scope until Jason explicitly approves after discussing with colleagues. See Phase 7.
 - **Error handling & logging** — Every backend service must handle errors gracefully with structured error responses. Use NestJS built-in logger for all operations. Every external API call must be wrapped in try/catch with meaningful error messages.
-- **S3 file storage** — File upload/retrieval goes through `FileStorageService`. Ensure files are uploaded with proper content types, size validation, and secure key naming.
+- **S3 file storage** — File upload/retrieval goes through `FileStorageService`. Files are stored on `Document` records. Ensure uploads have proper content types, size validation, and secure key naming.
 
 ---
 
@@ -40,20 +42,23 @@
 
 ### 1.1 Schema (`packages/drizzle/src/schema.ts`)
 
-12 tables fully defined with Drizzle ORM:
+13 tables fully defined with Drizzle ORM (migration `0005` applied):
 
 | Domain | Tables |
 |--------|--------|
-| **Auth & Identity** | `Company`, `User`, `CompanyMember`, `Credential`, `VerificationToken` |
-| **Workspace** | `Session`, `ChatMessage`, `File` |
-| **Document** | `Document` |
+| **Auth & Identity** | `Company`, `User`, `CompanyMember`, `Credential`, `VerificationToken`, `Invitation` |
+| **General Ledger** | `Ledger` |
+| **Workspace** | `Session`, `ChatMessage` |
+| **Document** | `Document` (file metadata merged in — no separate `File` table) |
 | **Billing** | `CompanyCredit`, `CreditTransaction` |
 | **Platform** | `ActivityLog` |
 
 Key design points:
 - `User` has NO `companyId` or `role` — these live on `CompanyMember` junction table
 - `CompanyMember` supports multi-company; backend enforces single membership for now
-- `Document` has 3 JSONB fields: `rawData` (immutable AI output), `draftData` (user edits), `approvedData` (immutable on approval)
+- **`Ledger`** — GL wrapper, one per company per fiscal year (unique index). `Ledger.id` = `ledger_scope_id` for the AI API.
+- **`Session`** — chat thread with optional `ledgerId` FK. `fiscalYear` has been removed from Session.
+- **`Document`** — owns file metadata directly (`name`, `url`, `size`, `mimeType`). Has 3 JSONB fields: `rawData` (immutable AI output), `draftData` (user edits), `approvedData` (immutable on approval). Has optional `ledgerId` and `chatId` FKs.
 - `CompanyCredit` is a credit wallet per company; `CreditTransaction` is an append-only ledger
 - `ActivityLog` is an append-only event stream with namespaced `action` strings
 - `Session.creatorId` → `User` (not `CompanyMember`) for stable audit trail
@@ -104,7 +109,8 @@ Key design points:
 
 | Module | What's Missing | Schema Tables |
 |--------|---------------|---------------|
-| **Document** | Full CRUD + extraction workflow + review/approve flow | `Document`, `File` |
+| **Ledger** | ✅ DONE (checkpoint 012) — Full CRUD with fiscalYear uniqueness validation | `Ledger` |
+| **Document** | Full CRUD + extraction workflow + review/approve flow | `Document` (file fields merged in) |
 | **CompanyMember** | Invite, remove, change role, list members | `CompanyMember` |
 | **CompanyCredit** | View balance, top-up | `CompanyCredit` |
 | **CreditTransaction** | List transactions, create usage record | `CreditTransaction` |
@@ -119,8 +125,8 @@ Key design points:
 | Module | Gap |
 |--------|-----|
 | **Chat** | Currently returns lorem ipsum. **This is the #1 integration priority.** The AI-API's LangGraph chat engine (`POST /api/chat/sessions/{id}/messages`) is what powers real AI responses. Our `ChatService.createMessage` must proxy user messages to AI-API and store the AI response with metadata. |
-| **Session** | Needs `fiscalYear` support in create; needs `summary` update endpoint |
-| **File** | File upload currently just stores in S3; needs to also create `Document` record and trigger AI extraction |
+| **Session** | ✅ `fiscalYear` removed — sessions now link to a `Ledger` via `ledgerId`. DTOs updated. |
+| **Document** | File fields now inline on Document (no separate File table). DTOs updated with `ledgerId`, `uploadSource`. |
 
 ### 2.3 Frontend — What Needs Wiring
 
@@ -177,9 +183,9 @@ Handles the Document extraction lifecycle tied to our schema.
 
 | Method | Route | Description | Auth |
 |--------|-------|-------------|------|
-| `POST` | `/documents` | Create document from an uploaded file. Creates `File` + `Document` records. | 🔐 |
-| `GET` | `/documents` | List documents for user's company. Supports filters: `documentType`, `extractionStatus`, `documentStatus`, `sessionId`. Excludes soft-deleted (`deletedAt IS NULL`). | 🔐 |
-| `GET` | `/documents/:id` | Get single document with file, session info. | 🔐 |
+| `POST` | `/documents` | Upload a file and create a Document record (file fields stored inline — no File table). Accepts optional `ledgerId`, `sessionId`, `documentType`. | 🔐 |
+| `GET` | `/documents` | List documents for user's company. Filters: `documentType`, `extractionStatus`, `documentStatus`, `sessionId`, `ledgerId`. | 🔐 |
+| `GET` | `/documents/:id` | Get single document with session + ledger info. | 🔐 |
 | `PATCH` | `/documents/:id` | Update document: edit `draftData`, change `documentType`, add `notes`. | 🔐 |
 | `POST` | `/documents/:id/approve` | Approve document: copies `draftData` → `approvedData`, sets `documentStatus = APPROVED`. Immutable once set. | 🔐 |
 | `DELETE` | `/documents/:id` | Soft-delete: sets `deletedAt` timestamp. Never hard-deletes. | 🔐 |
@@ -1201,57 +1207,18 @@ Unique constraint: `(companyId, email)` for pending invitations (prevent duplica
 
 ## 9. Phase 6 — Session=GL Alignment & Ledger Rewire
 
-> **Status:** PENDING — Planned, not yet implemented.
-> **Depends on:** Phases 1–3 complete.
+> **Status:** ✅ COMPLETE (checkpoint 012 — schema refactor) + earlier work.
+> **What was done:** `Session=GL` architecture retired. `Ledger` is now a dedicated table. `File` table removed and merged into `Document`. `Session.fiscalYear` removed; replaced with `Session.ledgerId`. New Ledger CRUD module added to backend. All services updated.
 
-### 6.1 Backend — Fix Session Scoping
+### Remaining Phase 6 work (frontend, Phase 3 plan)
 
-**Current bug:** `session.service.ts` `findAll()` filters by `creatorId` only. Company members can only see their own sessions, not each other's.
-
-**Fix:** Change to query by `companyId` (resolved from user's CompanyMember record), so all company members see all company sessions.
-
-**Also add:** Query filter for `?fiscalYear=YYYY` to filter sessions by GL year.
-
-### 6.2 Backend — AI Proxy Adjustments
-
-- Pass `sessionId` as `external_session_id` in `POST /api/ocr/presign` body for cross-system traceability
-- Add `x-ledger-scope-id` header support where needed (defaults to `tenant_id`)
-- Update `AI_API_BASE_URL` to live AWS domain in env config
-
-### 6.3 Frontend — `/ledger` Page (Session List)
-
-**File:** `apps/web/app/(auth)/ledger/page.tsx`
-
-- Fetch all sessions via `useSessions()` (company-scoped after 6.1 fix)
-- Display as list/grid of "ledger books": title, fiscal year, created date, document count
-- Click → navigate to `/ledger/[sessionId]`
-- Empty state: "No ledgers yet. Create a new session in the Chat page to get started."
-
-### 6.4 Frontend — `/ledger/[id]` Page (Session GL Detail)
-
-**File:** `apps/web/app/(auth)/ledger/[id]/page.tsx`
-
-- Render `<LedgerPage sessionId={params.id} />`
-- This is the MAIN ledger detail page — do NOT redirect away from it
-
-### 6.5 Frontend — LedgerPage Component Refactor
-
-**File:** `apps/web/components/ledger/LedgerPage.tsx`
-
-- Accept `sessionId: string` prop
-- Fetch session details to get `fiscalYear`
-- **Overview tab:** GL transactions for that session's fiscal year via `useGLStatus(fiscalYear)` / `useGLTransactions()`
-- **Tasks tab:** Documents filtered by `sessionId` via `useDocuments({ sessionId })`
-- Wire TaskDetailView back for document review:
-  - Map `Document` → `TaskData` format (rawData, draftData, approvedData)
-  - Draft edits → `useUpdateDocumentDraft()`
-  - "Verified" button → `useApproveDocument()`
-
-### 6.6 Frontend — Sidebar Dynamic Sessions
-
-**File:** `apps/web/components/layout/AppSidebar.tsx`
-
-- Dynamically list recent sessions under "Ledger" nav item
+- **3a**: Update frontend types for `Ledger` entity + updated `Document`/`Session` shapes
+- **3b**: Create `LedgerClient` + `useLedgerQueries` hooks
+- **3c**: Update `/ledger` page — list `Ledger` records (not sessions)
+- **3d**: Update `/ledger/[id]` — Ledger detail page (`ledger.id`, not `session.id`)
+- **3e**: Update document components — use `doc.name` / `doc.url` directly (no `doc.file?.name`)
+- **3f**: Update chat components — `messages.files` → `messages.documents`
+- **3g**: Update sidebar — dynamic ledger children
 - Max 5 sessions, with "View all" link to `/ledger`
 - Each links to `/ledger/[sessionId]`
 
@@ -1620,10 +1587,11 @@ Comprehensive mapping from our backend proxy routes to AI-API endpoints:
 | `CompanyMember` | Partial (list via company) | ✅ Full CRUD | — |
 | `Credential` | ✅ (via auth) | — | — |
 | `VerificationToken` | ✅ (via auth) | — | — |
-| `Session` | ✅ CRUD | Add `fiscalYear` | Chat sessions mirrored to AI-API |
+| `Session` | ✅ CRUD | `fiscalYear` removed → `ledgerId` added | Chat sessions link to Ledger |
 | `ChatMessage` | ✅ CRUD | Add feedback fields | **AI response + metadata (core integration)** |
-| `File` | ✅ Upload + DB | Auto-create Document | OCR presign |
-| `Document` | ❌ None | ✅ Full CRUD + approve | Extraction + enrichment |
+| `Ledger` | ✅ Full CRUD (checkpoint 012) | — | `ledger.id` = `ledger_scope_id` for AI API |
+| `Document` | ❌ Frontend wiring pending | ✅ Full CRUD + approve (file merged in) | Extraction + enrichment |
+| `File` | ~~Removed~~ | Merged into `Document` | File fields on `Document` directly |
 | `CompanyCredit` | ❌ None | ✅ Balance + top-up | Usage deduction |
 | `CreditTransaction` | ❌ None | ✅ List + internal create | Auto-created on AI usage |
 | `ActivityLog` | ❌ None | ✅ List + internal log | Logged on all operations |
@@ -1677,7 +1645,7 @@ Before starting implementation, ensure:
 - [x] **Phase 1:** All new backend modules compile. CRUD endpoints work for Document, Billing, CompanyMember, ActivityLog. ✅
 - [x] **Phase 2:** AI-API proxy endpoints work. Chat returns real AI responses (not lorem ipsum). OCR pipeline callable. ✅
 - [x] **Phase 3:** Frontend pages wired to real backend. Chat, Documents, Ledger, Settings pages functional. ✅
-- [ ] **Phase 4:** Backend E2E tests, Scalar API docs, Playwright frontend tests. (Partially done — 73 E2E tests, Scalar configured)
+- [x] **Phase 4:** Backend E2E tests ✅ (96 tests, 12 suites — all passing), Scalar API docs ✅, Playwright frontend tests ✅ (ledger + documents specs updated for Ledger-based flow). Bug fixed: `LedgerController` had wrong route prefix (`api/ledgers` → `ledgers`).
 - [x] **Phase 5:** Invitation feature — schema ✅, migration ✅, backend module ✅, frontend UI ✅ (AcceptInvitationPage, hooks, client), tests pending.
-- [x] **Phase 6:** Session=GL alignment — session scoping fix ✅, AI proxy sessionId passthrough ✅, /ledger page → session list ✅, /ledger/[id] → GL detail ✅, LedgerPage accepts sessionId ✅, sidebar dynamic sessions ✅, TaskDetailView wiring pending.
+- [x] **Phase 6:** Schema refactor complete ✅ — `Ledger` table, `File` merged into `Document`, `Session.ledgerId` FK, `ChatRole` expanded, migration `0005` applied. Ledger backend CRUD ✅, all services updated ✅. **Frontend Phase 3 also complete** ✅ — `LedgerClient`, hooks, `LedgerListPage`, `LedgerPage`, `AppSidebar`, `DocumentsPage` all wired to Ledger. Both builds 0 errors (checkpoint 013).
 - [ ] **Phase 7:** ⏸️ BLOCKED — Webhook endpoints (pending Jason's approval after colleague discussion).

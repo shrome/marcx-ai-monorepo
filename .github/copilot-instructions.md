@@ -64,17 +64,27 @@ You are a Senior Full-Stack Engineer and Architect. We have an existing codebase
 - **Tenant = Company.** In the AI API docs, "tenant" means a Company in our schema. All data must be scoped by `companyId`.
 - All backend queries must filter by `companyId`. Strict isolation between companies is required.
 
-## Session = General Ledger (GL)
+## Ledger Architecture (GL + Session separation)
 
 > **🚨 CRITICAL ARCHITECTURE RULE — Every engineer and AI agent must understand this.**
 
-A `Session` in our schema IS a General Ledger. When a user creates a session (via Chat), they are creating a ledger context. All chat messages and documents within that session are interactions within that GL.
+A `Ledger` is the **General Ledger book** — it wraps an entire fiscal year for a company. A `Session` is a **chat thread** that may optionally belong to a Ledger via `session.ledgerId`. These are separate entities.
 
-- **`/ledger/[id]`** is the main ledger detail page. `[id]` = `session.id`.
-- **`/ledger`** lists all sessions as "ledger books" (filtered by those with `fiscalYear` set).
-- **`/chat`** is where sessions are created and where users upload documents / interact with the AI.
-- Documents belong to a session (`document.sessionId`). The Tasks tab on the ledger page shows documents in that session.
-- The GL data (trial balance, transactions) is fetched from the AI API using the session's `fiscalYear` + company's `tenantId`.
+### Entity roles
+- **`Ledger`** — One per company per fiscal year. Owns `fiscalYear`. Is the `ledger_scope_id` for the AI API. Has `status`: `ACTIVE | CLOSED | ARCHIVED`.
+- **`Session`** — A chat thread. Has an optional `ledgerId` FK. Multiple sessions can belong to one ledger.
+- **`Document`** — An uploaded file with AI extraction state. Has both `sessionId` and optional `ledgerId`. File metadata (`name`, `url`, `size`, `mimeType`) is stored directly on the Document — there is no separate `File` table.
+
+### Page routing
+- **`/ledger`** — lists all `Ledger` records for the company.
+- **`/ledger/[id]`** — Ledger detail page. `[id]` = `ledger.id`.
+- **`/chat`** / **`/chat/[sessionId]`** — chat interface; sessions may link to a ledger.
+
+### Key rules
+- The `File` table **no longer exists** — it was merged into `Document` (checkpoint 012).
+- `Session.fiscalYear` **no longer exists** — fiscal year lives on `Ledger.fiscalYear`.
+- GL data (trial balance, transactions) is fetched from the AI API using `Ledger.fiscalYear` + company's `tenantId` + `Ledger.id` as `ledger_scope_id`.
+- Documents belong to a session (`document.sessionId`) AND optionally a ledger (`document.ledgerId`).
 
 ## AI API Identity & Header Mapping
 
@@ -98,10 +108,11 @@ JWT → req.user.id → TenantResolverService.resolve(userId)
 | Our Field | AI API Field | Purpose |
 |-----------|-------------|---------|
 | `session.id` | `external_session_id` | Cross-system traceability for chat sessions |
-| `file.id` | `external_file_id` | Cross-system traceability for uploaded files |
+| `document.id` | `external_file_id` | Cross-system traceability for uploaded files (File table removed — document owns all file metadata) |
 | `company.id` | `tenant_id` | Tenant identity |
 | `user.id` | `user_id` | User identity |
-| `session.fiscalYear` | `fiscal_year` (query/body param) | GL scoping — data scoped by `(tenant_id, ledger_scope_id, fiscal_year)` |
+| `ledger.id` | `ledger_scope_id` | GL scoping identifier — pass as `x-ledger-scope-id` header |
+| `ledger.fiscalYear` | `fiscal_year` (query/body param) | GL scoping — data scoped by `(tenant_id, ledger_scope_id, fiscal_year)` |
 
 ### Key AI API Endpoint Categories
 | Category | Key Endpoints | Our Proxy Routes |
@@ -155,6 +166,7 @@ src/modules/<feature>/
 - Use `async/await` — avoid `.then()` chains.
 - Remove all unused imports and variables before committing.
 - No dead code, no commented-out blocks left in.
+- **`@types/*` packages must always be in `devDependencies`** — never in `dependencies`. Type definitions are only needed during development/build, not at runtime.
 
 ## Error Handling & Logging
 
@@ -189,7 +201,9 @@ src/modules/<feature>/
 - **Case module is deprecated** — `apps/backend/src/modules/case/` still compiles but is not in the product roadmap. Do not add features to it.
 - **Webhooks are deferred** — Webhook endpoints for AI-API callbacks are not in scope until Jason explicitly approves. The system works via polling / synchronous proxy calls for now.
 - **AI API Base URL** — `http://chatbot-alb-dev-343845085.ap-southeast-1.elb.amazonaws.com` (live AWS ALB, may change if ALB is recreated). Set via `AI_API_BASE_URL` env var.
-- **GL data is NOT stored in our DB** — The AI API owns all GL data (trial balance, journal entries, transactions). Our backend proxies GL queries to the AI API. Our `Session.fiscalYear` tells us which fiscal year to query.
+- **GL data is NOT stored in our DB** — The AI API owns all GL data (trial balance, journal entries, transactions). Our backend proxies GL queries to the AI API using `Ledger.fiscalYear` + `Ledger.id` (as `ledger_scope_id`) + `Company.id` (as `tenant_id`).
+- **`File` table no longer exists** — Merged into `Document` (migration `0005`). `Document` now carries `name`, `url`, `size`, `mimeType` directly. Use `document.name`, `document.url`, etc. — never reference a `file` table or `fileId`.
+- **`Session.fiscalYear` no longer exists** — Fiscal year is on `Ledger.fiscalYear`. Sessions link to a Ledger via `session.ledgerId`.
 - **Document approval flow** — `PATCH /documents/:id` saves draftData/notes → `POST /documents/:id/approve` copies draftData→approvedData (immutable). This is separate from the AI enrichment pipeline.
 - **Invitation feature** — Full email invitation flow (invite link via email, works even if user doesn't have an account). New `invitation` table + module. Current `inviteMember` in company-member will be augmented.
 

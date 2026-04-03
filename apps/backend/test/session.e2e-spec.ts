@@ -21,7 +21,7 @@ describe('SessionController (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/sessions')
         .set('Cookie', seed.authCookie)
-        .send({ title: 'Test Session', fiscalYear: 2024 })
+        .send({ title: 'Test Session' })
         .expect(201);
 
       expect(res.body).toHaveProperty('id');

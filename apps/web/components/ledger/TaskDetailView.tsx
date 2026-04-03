@@ -20,6 +20,15 @@ import {
   CheckCircle2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  GridTable,
+  GridTableCell,
+  GridTableHead,
+  GridTableHeader,
+  GridTableRow,
+  TableBody,
+  TablePill,
+} from "@/components/ui/table"
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -108,34 +117,34 @@ function DocumentPreview({ task }: { task: TaskData }) {
 
           {/* Line items table */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-3 py-2 text-left font-medium text-gray-500">Description</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">Qty</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">Unit/mo</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-500">Unit/yr</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-100">
-                  <td className="px-3 py-2 font-medium text-gray-800">Website Development Maintenance</td>
-                  <td colSpan={3} className="px-3 py-2 text-right text-gray-600">7,800</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="px-3 py-2 pl-5 text-gray-500">Website Content Management</td>
-                  <td className="px-3 py-2 text-right text-gray-500">6</td>
-                  <td className="px-3 py-2 text-right text-gray-500">1,000</td>
-                  <td className="px-3 py-2 text-right text-gray-500">6,000</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="px-3 py-2 pl-5 text-gray-500">Server Fees Hosting</td>
-                  <td className="px-3 py-2 text-right text-gray-500">1</td>
-                  <td className="px-3 py-2 text-right text-gray-500">150</td>
-                  <td className="px-3 py-2 text-right text-gray-500">1,800</td>
-                </tr>
-              </tbody>
-            </table>
+            <GridTable className="text-xs">
+              <GridTableHeader>
+                <GridTableRow className="hover:bg-[#efefef]">
+                  <GridTableHead>Description</GridTableHead>
+                  <GridTableHead className="text-right">Qty</GridTableHead>
+                  <GridTableHead className="text-right">Unit/mo</GridTableHead>
+                  <GridTableHead className="text-right">Unit/yr</GridTableHead>
+                </GridTableRow>
+              </GridTableHeader>
+              <TableBody>
+                <GridTableRow>
+                  <GridTableCell className="font-medium text-gray-800">Website Development Maintenance</GridTableCell>
+                  <GridTableCell colSpan={3} className="text-right text-gray-600">7,800</GridTableCell>
+                </GridTableRow>
+                <GridTableRow>
+                  <GridTableCell className="pl-5 text-gray-500">Website Content Management</GridTableCell>
+                  <GridTableCell className="text-right text-gray-500">6</GridTableCell>
+                  <GridTableCell className="text-right text-gray-500">1,000</GridTableCell>
+                  <GridTableCell className="text-right text-gray-500">6,000</GridTableCell>
+                </GridTableRow>
+                <GridTableRow>
+                  <GridTableCell className="pl-5 text-gray-500">Server Fees Hosting</GridTableCell>
+                  <GridTableCell className="text-right text-gray-500">1</GridTableCell>
+                  <GridTableCell className="text-right text-gray-500">150</GridTableCell>
+                  <GridTableCell className="text-right text-gray-500">1,800</GridTableCell>
+                </GridTableRow>
+              </TableBody>
+            </GridTable>
           </div>
 
           {/* Totals */}
@@ -285,9 +294,7 @@ export function TaskDetailView({
       icon: <Tag className="h-3.5 w-3.5 text-gray-400" />,
       label: "Type",
       renderValue: () => (
-        <span className="inline-flex items-center bg-gray-100 text-gray-700 rounded-md px-2 py-0.5 text-xs font-medium">
-          {task.type}
-        </span>
+        <TablePill className="max-w-[180px] text-xs">{task.type}</TablePill>
       ),
     },
     {
@@ -295,9 +302,7 @@ export function TaskDetailView({
       icon: <FileText className="h-3.5 w-3.5 text-gray-400" />,
       label: "Doc Type",
       renderValue: () => (
-        <span className="inline-flex items-center bg-gray-100 text-gray-700 rounded-md px-2 py-0.5 text-xs font-medium">
-          {task.docType}
-        </span>
+        <TablePill className="max-w-[180px] text-xs">{task.docType}</TablePill>
       ),
     },
     {
@@ -311,9 +316,7 @@ export function TaskDetailView({
       icon: <Link2 className="h-3.5 w-3.5 text-gray-400" />,
       label: "File URL",
       renderValue: () => (
-        <span className="inline-flex items-center bg-gray-100 text-gray-700 rounded-md px-2 py-0.5 text-xs font-medium max-w-[140px] truncate">
-          {task.fileUrl}
-        </span>
+        <TablePill className="max-w-[160px] text-xs">{task.fileUrl}</TablePill>
       ),
     },
     {
@@ -430,51 +433,51 @@ export function TaskDetailView({
 
           {/* ── Main data table ── */}
           <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50/50">
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left w-28">Item</th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">Values</th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 text-left bg-amber-50/70 border-l border-amber-100">
+            <GridTable>
+              <GridTableHeader>
+                <GridTableRow className="hover:bg-[#efefef]">
+                  <GridTableHead className="w-28">Item</GridTableHead>
+                  <GridTableHead>Values</GridTableHead>
+                  <GridTableHead className="bg-amber-50/70">
                     <div className="flex items-center gap-1.5">
                       <Pencil className="h-3 w-3 text-amber-500" />
                       Corrected Values
                     </div>
-                  </th>
-                  <th className="py-2.5 px-4 text-xs font-medium text-gray-500 text-left bg-amber-50/70 border-l border-amber-100">
+                  </GridTableHead>
+                  <GridTableHead className="bg-amber-50/70">
                     <div className="flex items-center gap-1.5">
                       <Pencil className="h-3 w-3 text-amber-500" />
                       Feedback
                     </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </GridTableHead>
+                </GridTableRow>
+              </GridTableHeader>
+              <TableBody>
                 {dataFields.map(({ key, icon, label, renderValue }) => (
-                  <tr key={key} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2.5 px-4">
+                  <GridTableRow key={key}>
+                    <GridTableCell>
                       <div className="flex items-center gap-1.5">
                         {icon}
                         <span className="text-xs text-gray-500 font-medium">{label}</span>
                       </div>
-                    </td>
-                    <td className="py-2.5 px-4">{renderValue()}</td>
-                    <td className="py-2.5 px-4 bg-amber-50/40 border-l border-amber-100">
+                    </GridTableCell>
+                    <GridTableCell>{renderValue()}</GridTableCell>
+                    <GridTableCell className="bg-amber-50/40">
                       <EditableCell
                         value={correctedValues[key] ?? ""}
                         onChange={(v) => setCorrectedValues({ ...correctedValues, [key]: v })}
                       />
-                    </td>
-                    <td className="py-2.5 px-4 bg-amber-50/40 border-l border-amber-100">
+                    </GridTableCell>
+                    <GridTableCell className="bg-amber-50/40">
                       <EditableCell
                         value={feedbackValues[key] ?? ""}
                         onChange={(v) => setFeedbackValues({ ...feedbackValues, [key]: v })}
                       />
-                    </td>
-                  </tr>
+                    </GridTableCell>
+                  </GridTableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </GridTable>
           </div>
 
           {/* ── Itemised items ── */}
@@ -486,38 +489,28 @@ export function TaskDetailView({
               </button>
             </div>
             <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50/50">
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">
-                      <div className="flex items-center gap-1.5"><Hash className="h-3.5 w-3.5" /> Item</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">
-                      <div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Item description</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-right">
-                      <div className="flex items-center gap-1.5 justify-end"><Package className="h-3.5 w-3.5" /> Quantity</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-right">
-                      <div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Unit Price</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-right">
-                      <div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Amount</div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+              <GridTable>
+                <GridTableHeader>
+                  <GridTableRow className="hover:bg-[#efefef]">
+                    <GridTableHead><div className="flex items-center gap-1.5"><Hash className="h-3.5 w-3.5" /> Item</div></GridTableHead>
+                    <GridTableHead><div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Item description</div></GridTableHead>
+                    <GridTableHead className="text-right"><div className="flex items-center gap-1.5 justify-end"><Package className="h-3.5 w-3.5" /> Quantity</div></GridTableHead>
+                    <GridTableHead className="text-right"><div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Unit Price</div></GridTableHead>
+                    <GridTableHead className="text-right"><div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Amount</div></GridTableHead>
+                  </GridTableRow>
+                </GridTableHeader>
+                <TableBody>
                   {task.itemisedItems.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                      <td className="py-2.5 px-4 text-xs text-gray-700 font-medium">{row.item}</td>
-                      <td className="py-2.5 px-4 text-xs text-gray-600">{row.description}</td>
-                      <td className="py-2.5 px-4 text-xs text-gray-700 text-right tabular-nums">{row.quantity}</td>
-                      <td className="py-2.5 px-4 text-xs text-gray-700 text-right tabular-nums">{row.unitPrice}</td>
-                      <td className="py-2.5 px-4 text-xs text-gray-700 text-right tabular-nums font-medium">{row.amount}</td>
-                    </tr>
+                    <GridTableRow key={i}>
+                      <GridTableCell className="text-xs font-medium">{row.item}</GridTableCell>
+                      <GridTableCell className="text-xs">{row.description}</GridTableCell>
+                      <GridTableCell className="text-right tabular-nums text-xs">{row.quantity}</GridTableCell>
+                      <GridTableCell className="text-right tabular-nums text-xs">{row.unitPrice}</GridTableCell>
+                      <GridTableCell className="text-right tabular-nums text-xs font-medium">{row.amount}</GridTableCell>
+                    </GridTableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </GridTable>
             </div>
           </div>
 
@@ -528,48 +521,28 @@ export function TaskDetailView({
                 <LayoutGrid className="h-4 w-4 text-amber-600" />
                 <span className="text-sm font-semibold text-gray-700">Corrected Values</span>
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-amber-100">
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">
-                      <div className="flex items-center gap-1.5"><Hash className="h-3.5 w-3.5" /> Item</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">
-                      <div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Item description</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-right">
-                      <div className="flex items-center gap-1.5 justify-end"><Package className="h-3.5 w-3.5" /> Quantity</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-right">
-                      <div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Unit Price</div>
-                    </th>
-                    <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-right">
-                      <div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Amount</div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+              <GridTable>
+                <GridTableHeader>
+                  <GridTableRow className="hover:bg-amber-50/60">
+                    <GridTableHead><div className="flex items-center gap-1.5"><Hash className="h-3.5 w-3.5" /> Item</div></GridTableHead>
+                    <GridTableHead><div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Item description</div></GridTableHead>
+                    <GridTableHead className="text-right"><div className="flex items-center gap-1.5 justify-end"><Package className="h-3.5 w-3.5" /> Quantity</div></GridTableHead>
+                    <GridTableHead className="text-right"><div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Unit Price</div></GridTableHead>
+                    <GridTableHead className="text-right"><div className="flex items-center gap-1.5 justify-end"><DollarSign className="h-3.5 w-3.5" /> Amount</div></GridTableHead>
+                  </GridTableRow>
+                </GridTableHeader>
+                <TableBody>
                   {correctedRows.map((row, i) => (
-                    <tr key={row.id} className="border-b border-amber-100 last:border-0">
-                      <td className="py-2 px-4">
-                        <EditableCell value={row.item} onChange={(v) => updateCorrectedRow(i, "item", v)} />
-                      </td>
-                      <td className="py-2 px-4">
-                        <EditableCell value={row.description} onChange={(v) => updateCorrectedRow(i, "description", v)} />
-                      </td>
-                      <td className="py-2 px-4">
-                        <EditableCell value={row.quantity} onChange={(v) => updateCorrectedRow(i, "quantity", v)} align="right" />
-                      </td>
-                      <td className="py-2 px-4">
-                        <EditableCell value={row.unitPrice} onChange={(v) => updateCorrectedRow(i, "unitPrice", v)} align="right" />
-                      </td>
-                      <td className="py-2 px-4">
-                        <EditableCell value={row.amount} onChange={(v) => updateCorrectedRow(i, "amount", v)} align="right" />
-                      </td>
-                    </tr>
+                    <GridTableRow key={row.id} className="hover:bg-amber-50/25">
+                      <GridTableCell className="py-2"><EditableCell value={row.item} onChange={(v) => updateCorrectedRow(i, "item", v)} /></GridTableCell>
+                      <GridTableCell className="py-2"><EditableCell value={row.description} onChange={(v) => updateCorrectedRow(i, "description", v)} /></GridTableCell>
+                      <GridTableCell className="py-2"><EditableCell value={row.quantity} onChange={(v) => updateCorrectedRow(i, "quantity", v)} align="right" /></GridTableCell>
+                      <GridTableCell className="py-2"><EditableCell value={row.unitPrice} onChange={(v) => updateCorrectedRow(i, "unitPrice", v)} align="right" /></GridTableCell>
+                      <GridTableCell className="py-2"><EditableCell value={row.amount} onChange={(v) => updateCorrectedRow(i, "amount", v)} align="right" /></GridTableCell>
+                    </GridTableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </GridTable>
               <div className="px-4 py-2.5 border-t border-amber-100">
                 <button
                   onClick={addCorrectedRow}

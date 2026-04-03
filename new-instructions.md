@@ -1,11 +1,21 @@
-Hey I think there are some things still need to be done correctly, sorry for not providing context correctly. Things need to add or change or clarify for better context:
-1. Add invitation feature in term of schema, backend apis and integrate it to frontend. (Might need to break it into several phases)
-2. For the context, in our schema session is = to the ai general-ledger, so all the interaction like chat or docs in one session is actually = interaction in gl, can think of it like gl session (might need to update in the instruction and potential implementation  files, since this is quite important).
-3. For 2nd context, if you inspect the ledger page, you will see there’s a task tab, that tab is for user to the status and result that was processed by the ai
-    1. When just click into the task it will just list out all the documents uploaded in that session, and displaying all the status
-    2. If user clicked one of it, a pop up will appear and show the file uploaded, and the processed fields
-    3. Then user can review the file and the extracted and processed fields, once all done reviewed and corrected, they will click a Verified/Approved button then it will save it to db, else all the changes made would also be save but only as a draft, not yet the final approval til the button clicked
-4. So as you understand the context now, when user click the Ledger page, it will queries existing session first, if no sessions, just show session/gl not found. And ask them to create one in the chat page.
-5. Might need to modify the backend to cater to this new info, make sure write test and make sure the test pass too for the backend.
-6. FYI, the documents page, is the place that show all the documents regardless of the sessions
-7. Lastly, make sure that the ledger/[id] page is use and not just ledger/page.tsx, the id of the ledger is the session id.
+Great, thanks for ui changes and integrations, now I need to discuss with you on the flows and latest changes.
+
+Let's not do the integration for the chat and documents page first. May be can do for the documents page listing but not the upload (or you can hide it first.)
+
+What I wanna focus now is the ledger flow, if you study at the latest UI, you will notice that there's a new '+' button at the sidebar, user can just click that to create new ledger, as below the `ledger` title in sidebar would have bunch of ledgers created.
+
+The flow of gl/ledger creation:
+1. User click '+' button
+2. A modal/dialog/pop up appear
+3. Asking user to fill ledger title, description(if we have it, kinda forgotten on that), fiscal year, and upload files(last year gl, bank statements and related docs.)
+4. After fill up all those fields, and user click the 'Create' button
+5. Once button clicked, it will call an api to create ledger and call ai-apis. For the ai-apis first, it will call /api/gl/initialise api, then it will call /api/gl/upload to upload all related files.
+6. Once all success, means gls successfully created and will redirect user to the latest gls created.
+
+The flow of gl/ledger interaction or updates:
+1. User will chat with the chat sidebar or top chat interface when interacting with the ui.
+2. When user start chatting, if no existing chatting session, it will start to create one (this also need to refer to the ai-doc and mine, for session let's use ai one for now). (NOTE: for the session, let's make it to have a window session basis or current browser session, if they close current or all tabs and re-open then the session will gone.)
+3. Next, when user is chatting, to post message will be using POST /api/chat/sessions/{session_id}/messages (ai-api, for text only).
+4. If user have file uploads then will be /api/ocr/presign
+5. If have both chatting and file upload then will be both together, the message api don't have file upload. Which is why front end wouldn't directly interaqct with ai-api, and have a backend proxy instead.
+

@@ -134,14 +134,15 @@ export interface Message {
     name?: string | null;
     image?: string | null;
   };
-  files?: Array<{
+  documents?: Array<{
     id: string;
     name: string;
     url: string;
     size: string;
-    type: string;
-    sessionId: string;
+    mimeType: string;
+    sessionId?: string | null;
     chatId?: string | null;
+    ledgerId?: string | null;
     createdAt: string;
   }>;
 }
@@ -174,6 +175,32 @@ export interface Company {
   updatedAt: string;
 }
 
+// Ledger Types
+export interface CreateLedgerDto {
+  name: string;
+  fiscalYear: number;
+  description?: string;
+}
+
+export interface UpdateLedgerDto {
+  name?: string;
+  description?: string;
+  status?: 'ACTIVE' | 'CLOSED' | 'ARCHIVED';
+}
+
+export interface Ledger {
+  id: string;
+  companyId: string;
+  creatorId: string;
+  name: string;
+  fiscalYear: number;
+  status: 'ACTIVE' | 'CLOSED' | 'ARCHIVED';
+  description?: string | null;
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Session Types
 export interface CreateSessionDto {
   type: 'CHAT' | 'CASE';
@@ -181,6 +208,7 @@ export interface CreateSessionDto {
   description?: string;
   priority?: 'low' | 'medium' | 'high';
   companyId?: string;
+  ledgerId?: string;
 }
 
 export interface UpdateSessionDto {
@@ -197,7 +225,7 @@ export interface Session {
   description?: string;
   status: 'open' | 'in_progress' | 'closed';
   priority: 'low' | 'medium' | 'high';
-  fiscalYear?: number;
+  ledgerId?: string | null;
   userId: string;
   companyId?: string;
   createdAt: string;

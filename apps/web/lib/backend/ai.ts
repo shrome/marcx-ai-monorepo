@@ -151,6 +151,23 @@ export class AiClient extends Backend {
     return this.post('/ai/categorisation-rules', data);
   }
 
+  // ── Chat ─────────────────────────────────────────────────────────────────
+
+  async createAiChatSession(data?: { title?: string; fiscal_year?: number }): Promise<{ id: string; [key: string]: unknown }> {
+    return this.post('/ai/chat/sessions', data ?? {});
+  }
+
+  async sendAiChatMessage(sessionId: string, message: string): Promise<{ content: string; [key: string]: unknown }> {
+    return this.post(`/ai/chat/sessions/${sessionId}/messages`, { message });
+  }
+
+  async chatUploadPresign(
+    sessionId: string,
+    data: { filename?: string; contentType?: string },
+  ): Promise<{ url: string; key: string; [key: string]: unknown }> {
+    return this.post(`/ai/chat/sessions/${sessionId}/upload`, data);
+  }
+
   // ── LLM Usage ─────────────────────────────────────────────────────────────
 
   async getLlmUsage(period?: string): Promise<LlmUsage> {

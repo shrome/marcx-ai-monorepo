@@ -17,7 +17,7 @@ describe('DocumentController (e2e)', () => {
     const sessionRes = await request(app.getHttpServer())
       .post('/api/sessions')
       .set('Cookie', seed.authCookie)
-      .send({ title: 'Doc Session', fiscalYear: 2024 })
+      .send({ title: 'Doc Session' })
       .expect(201);
 
     sessionId = sessionRes.body.id;
@@ -36,6 +36,13 @@ describe('DocumentController (e2e)', () => {
         .expect(201);
 
       expect(res.body).toHaveProperty('id');
+      // Verify inline file fields — no nested file object
+      expect(res.body).toHaveProperty('name');
+      expect(res.body).toHaveProperty('url');
+      expect(res.body).toHaveProperty('size');
+      expect(res.body).toHaveProperty('mimeType');
+      expect(res.body).not.toHaveProperty('fileId');
+      expect(res.body).not.toHaveProperty('file');
       documentId = res.body.id;
     });
 

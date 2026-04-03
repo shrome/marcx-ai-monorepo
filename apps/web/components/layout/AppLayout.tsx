@@ -6,9 +6,15 @@ import { AppHeader } from "./AppHeader"
 import { AppSidebar } from "./AppSidebar"
 import { GlobalChatPanel } from "./GlobalChatPanel"
 
+function extractLedgerId(pathname: string): string | undefined {
+  const match = pathname.match(/^\/ledger\/([^/]+)/)
+  return match?.[1]
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isLedgerPage = pathname?.startsWith("/ledger") ?? false
+  const isLedgerPage = pathname?.startsWith("/ledger/") ?? false
+  const ledgerId = isLedgerPage ? extractLedgerId(pathname ?? "") : undefined
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [chatPanelOpen, setChatPanelOpen] = useState(false)
@@ -35,14 +41,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-auto bg-white">{children}</main>
       </div>
 
-      {/* Global sliding AI chat panel — only available on ledger pages */}
+      {/* Global sliding AI chat panel — only available on individual ledger pages */}
       {isLedgerPage && (
         <div
           className={`fixed top-14 right-0 bottom-0 w-80 z-40 transform transition-transform duration-300 ease-in-out border-l border-gray-200 shadow-xl ${
             chatPanelOpen ? "translate-x-0" : "translate-x-full"
           }`}
         >
-          <GlobalChatPanel onClose={() => setChatPanelOpen(false)} />
+          <GlobalChatPanel
+            onClose={() => setChatPanelOpen(false)}
+            ledgerId={ledgerId}
+          />
         </div>
       )}
     </div>

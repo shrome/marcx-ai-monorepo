@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AiApiClient } from './ai-api.client';
 import { TenantResolverService } from './tenant-resolver.service';
+import { db, eq } from '@marcx/db';
+import { ledger } from '@marcx/db/schema';
 
 @Injectable()
 export class AiProxyService {
@@ -11,19 +13,28 @@ export class AiProxyService {
     private readonly tenantResolver: TenantResolverService,
   ) {}
 
+  // ── Ledger Resolution ──────────────────────────────────────────────────────
+
+  private async resolveLedger(ledgerId: string) {
+    const found = await db.query.ledger.findFirst({
+      where: eq(ledger.id, ledgerId),
+    });
+    if (!found) throw new NotFoundException(`Ledger ${ledgerId} not found.`);
+    return found;
+  }
+
   // ── OCR Pipeline ─────────────────────────────────────────────────────────
 
   async ocrPresign(
-    body: { filename: string; contentType: string; sessionId?: string; fileId?: string },
+    body: { filename: string; contentType: string; sessionId?: string; documentId?: string },
     userId: string,
   ) {
     const { tenantId } = await this.tenantResolver.resolve(userId);
     this.logger.log(`OCR presign for tenant ${tenantId}: ${body.filename}`);
     return this.aiApiClient.post('/api/ocr/presign', { tenantId, userId }, {
       ...body,
-      // Bridge fields for cross-system traceability
-      ...(body.sessionId && { sessionId: body.sessionId }),
-      ...(body.fileId && { fileId: body.fileId }),
+      ...(body.sessionId && { external_session_id: body.sessionId }),
+      ...(body.documentId && { external_file_id: body.documentId }),
     });
   }
 
@@ -41,16 +52,29 @@ export class AiProxyService {
   async ocrJobProcess(
     docId: string,
     body: Record<string, unknown>,
-    fiscalYear: string | undefined,
+    ledgerId: string | undefined,
     userId: string,
   ) {
     const { tenantId } = await this.tenantResolver.resolve(userId);
     this.logger.log(`OCR process (post to GL) for doc ${docId}, tenant ${tenantId}`);
-    const params = fiscalYear ? { fiscal_year: fiscalYear } : undefined;
+
+    let fiscalYear: number | undefined;
+    let ledgerScopeId: string | undefined;
+
+    if (ledgerId) {
+      const ledgerRecord = await this.resolveLedger(ledgerId);
+      fiscalYear = ledgerRecord.fiscalYear;
+      ledgerScopeId = ledgerRecord.id;
+    }
+
     return this.aiApiClient.post(
       `/api/ocr/jobs/${tenantId}/${docId}/process`,
-      { tenantId, userId },
-      { ...body, ...(params && { fiscal_year: fiscalYear }) },
+      { tenantId, userId, ...(ledgerScopeId && { ledgerScopeId }) },
+      {
+        ...body,
+        ...(fiscalYear !== undefined && { fiscal_year: fiscalYear }),
+        ...(ledgerScopeId && { ledger_scope_id: ledgerScopeId }),
+      },
     );
   }
 
@@ -93,6 +117,23 @@ export class AiProxyService {
   }
 
   // ── General Ledger ────────────────────────────────────────────────────────
+
+  async glUploadFile(
+    file: { buffer: Buffer; originalname: string; mimetype: string },
+    fiscalYear: number,
+    userId: string,
+  ) {
+    const { tenantId } = await this.tenantResolver.resolve(userId);
+    this.logger.log(
+      `GL file upload for tenant ${tenantId}, file ${file.originalname}, fiscal year ${fiscalYear}`,
+    );
+    return this.aiApiClient.postMultipartBuffer(
+      '/api/gl/upload',
+      { tenantId, userId },
+      { fiscal_year: String(fiscalYear) },
+      { buffer: file.buffer, filename: file.originalname, mimeType: file.mimetype },
+    );
+  }
 
   async glUpload(body: Record<string, unknown>, userId: string) {
     const { tenantId } = await this.tenantResolver.resolve(userId);

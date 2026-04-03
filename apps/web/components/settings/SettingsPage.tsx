@@ -8,7 +8,15 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
+import {
+  GridTable,
+  GridTableCell,
+  GridTableHead,
+  GridTableHeader,
+  GridTableRow,
+  TableBody,
+  TablePill,
+} from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
@@ -278,29 +286,29 @@ function ChartOfAccountsTab() {
 
   return (
     <div className="max-w-2xl">
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">Code</th>
-              <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">Name</th>
-              <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">Type</th>
-              <th className="py-2.5 px-4 text-xs font-medium text-gray-400 text-left">Description</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="rounded-xl overflow-hidden border border-[#d4d4d4] bg-white">
+        <GridTable>
+          <GridTableHeader>
+            <GridTableRow className="hover:bg-[#efefef]">
+              <GridTableHead>Code</GridTableHead>
+              <GridTableHead>Name</GridTableHead>
+              <GridTableHead>Type</GridTableHead>
+              <GridTableHead>Description</GridTableHead>
+            </GridTableRow>
+          </GridTableHeader>
+          <TableBody>
             {accounts.map((account) => (
-              <tr key={account.code} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                <td className="py-2.5 px-4 font-mono text-xs text-gray-500">{account.code}</td>
-                <td className="py-2.5 px-4 font-medium text-gray-800">{account.name}</td>
-                <td className="py-2.5 px-4">
-                  <Badge variant="secondary" className="text-xs">{account.type}</Badge>
-                </td>
-                <td className="py-2.5 px-4 text-xs text-gray-400">{account.description ?? "—"}</td>
-              </tr>
+              <GridTableRow key={account.code}>
+                <GridTableCell className="font-mono text-[#555]">{account.code}</GridTableCell>
+                <GridTableCell className="font-medium text-[#222]">{account.name}</GridTableCell>
+                <GridTableCell>
+                  <TablePill className="text-xs">{account.type}</TablePill>
+                </GridTableCell>
+                <GridTableCell className="text-[#666]">{account.description ?? "—"}</GridTableCell>
+              </GridTableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </GridTable>
       </div>
     </div>
   )

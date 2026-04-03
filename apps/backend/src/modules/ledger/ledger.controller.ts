@@ -7,11 +7,15 @@ import {
   Body,
   Param,
   ParseUUIDPipe,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
   Request,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -20,6 +24,7 @@ import {
 import { LedgerService } from './ledger.service';
 import { CreateLedgerDto } from './dto/create-ledger.dto';
 import { UpdateLedgerDto } from './dto/update-ledger.dto';
+import { CreateLedgerWithGlDto } from './dto/create-ledger-with-gl.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 
 interface RequestWithUser extends Request {
@@ -29,9 +34,23 @@ interface RequestWithUser extends Request {
 @ApiTags('Ledgers')
 @ApiBearerAuth()
 @UseGuards(AuthGuard)
-@Controller('api/ledgers')
+@Controller('ledgers')
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
+
+  @Post('create-with-gl')
+  @ApiOperation({ summary: 'Create a ledger and upload GL files to AI in one step' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Ledger created and GL files uploaded' })
+  @ApiResponse({ status: 409, description: 'A ledger for this fiscal year already exists' })
+  @UseInterceptors(FilesInterceptor('files', 20))
+  createWithGL(
+    @Request() req: RequestWithUser,
+    @Body() dto: CreateLedgerWithGlDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    return this.ledgerService.createWithGL(dto, files ?? [], req.user.id);
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a new General Ledger for the current fiscal year' })

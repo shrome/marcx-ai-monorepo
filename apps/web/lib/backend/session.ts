@@ -5,7 +5,7 @@ export class SessionClient extends Backend {
   /**
    * Create a new chat session with the user's company
    */
-  async createChatSession(data?: { title?: string }): Promise<Session> {
+  async createChatSession(data?: { title?: string; ledgerId?: string }): Promise<Session> {
     return this.post<Session>('/sessions/chat', data || {});
   }
 
@@ -18,11 +18,11 @@ export class SessionClient extends Backend {
 
   /**
    * Get all sessions for the current user's company
-   * @param fiscalYear Optional filter by fiscal year (for GL/ledger sessions)
+   * @param ledgerId Optional filter by ledger
    */
-  async findAll(fiscalYear?: number): Promise<Session[]> {
+  async findAll(ledgerId?: string): Promise<Session[]> {
     const params = new URLSearchParams();
-    if (fiscalYear) params.set('fiscalYear', String(fiscalYear));
+    if (ledgerId) params.set('ledgerId', ledgerId);
     const qs = params.toString();
     return this.get<Session[]>(qs ? `/sessions?${qs}` : '/sessions');
   }

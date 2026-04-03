@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   Pencil,
@@ -19,6 +19,8 @@ import {
   Loader2,
   AlertCircle,
   InboxIcon,
+  Paperclip,
+  ArrowUp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,8 +28,19 @@ import { useDropzone } from "react-dropzone"
 import { toast } from "sonner"
 import { useGLStatus, useGLTransactions, useExportGL, useUploadGL } from "@/hooks/useAiQueries"
 import { useAuth } from "@/components/AuthContext"
+import { useLedgerChat } from "@/hooks/useLedgerChat"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDocuments } from "@/hooks/useDocumentQueries"
+import { useLedger } from "@/hooks/useLedgerQueries"
+import {
+  GridTable,
+  GridTableCell,
+  GridTableHead,
+  GridTableHeader,
+  GridTableRow,
+  TableBody,
+  TablePill,
+} from "@/components/ui/table"
 import type { Document } from "@/lib/backend"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -89,35 +102,31 @@ function ColHeader({
 
 function LedgerTable({ rows }: { rows: LedgerRow[] }) {
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-200">
-            <ColHeader icon={<Calendar className="h-3.5 w-3.5" />} label="Date" />
-            <ColHeader icon={<Tag className="h-3.5 w-3.5" />} label="Account" />
-            <ColHeader icon={<FileText className="h-3.5 w-3.5" />} label="Description" />
-            <ColHeader icon={<TrendingUp className="h-3.5 w-3.5" />} label="Debit" align="right" />
-            <ColHeader icon={<TrendingDown className="h-3.5 w-3.5" />} label="Credit" align="right" />
-            <ColHeader icon={<Hash className="h-3.5 w-3.5" />} label="Balance" align="right" />
-          </tr>
-        </thead>
-        <tbody>
+    <div className="rounded-lg overflow-hidden border border-[#d4d4d4] bg-white">
+      <GridTable>
+        <GridTableHeader>
+          <GridTableRow className="hover:bg-[#efefef]">
+            <GridTableHead><div className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Date</div></GridTableHead>
+            <GridTableHead><div className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" />Account</div></GridTableHead>
+            <GridTableHead><div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Description</div></GridTableHead>
+            <GridTableHead className="text-right"><div className="flex items-center justify-end gap-1.5"><TrendingUp className="h-3.5 w-3.5" />Debit</div></GridTableHead>
+            <GridTableHead className="text-right"><div className="flex items-center justify-end gap-1.5"><TrendingDown className="h-3.5 w-3.5" />Credit</div></GridTableHead>
+            <GridTableHead className="text-right"><div className="flex items-center justify-end gap-1.5"><Hash className="h-3.5 w-3.5" />Balance</div></GridTableHead>
+          </GridTableRow>
+        </GridTableHeader>
+        <TableBody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60 transition-colors">
-              <td className="py-2.5 px-3 text-xs text-gray-500 tabular-nums">{row.date}</td>
-              <td className="py-2.5 px-3">
-                <span className="bg-gray-100 text-gray-700 rounded px-2 py-0.5 text-xs">
-                  {row.account}
-                </span>
-              </td>
-              <td className="py-2.5 px-3 text-gray-800 text-sm">{row.description}</td>
-              <td className="py-2.5 px-3 text-right text-xs tabular-nums text-gray-700">{row.debit}</td>
-              <td className="py-2.5 px-3 text-right text-xs tabular-nums text-gray-700">{row.credit}</td>
-              <td className="py-2.5 px-3 text-right text-xs tabular-nums font-medium text-gray-900">{row.balance}</td>
-            </tr>
+            <GridTableRow key={i}>
+              <GridTableCell className="tabular-nums text-[#3a3a3a]">{row.date}</GridTableCell>
+              <GridTableCell><TablePill>{row.account}</TablePill></GridTableCell>
+              <GridTableCell>{row.description}</GridTableCell>
+              <GridTableCell className="text-right tabular-nums">{row.debit}</GridTableCell>
+              <GridTableCell className="text-right tabular-nums">{row.credit}</GridTableCell>
+              <GridTableCell className="text-right tabular-nums font-medium">{row.balance}</GridTableCell>
+            </GridTableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </GridTable>
     </div>
   )
 }
@@ -134,33 +143,29 @@ type TaskRow = {
 
 function TaskTable({ rows }: { rows: TaskRow[] }) {
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-200">
-            <ColHeader icon={<Calendar className="h-3.5 w-3.5" />} label="Date" />
-            <ColHeader icon={<FileText className="h-3.5 w-3.5" />} label="Description" />
-            <ColHeader icon={<Tag className="h-3.5 w-3.5" />} label="Account" />
-            <ColHeader icon={<TrendingUp className="h-3.5 w-3.5" />} label="Debit" align="right" />
-            <ColHeader icon={<TrendingDown className="h-3.5 w-3.5" />} label="Credit" align="right" />
-          </tr>
-        </thead>
-        <tbody>
+    <div className="rounded-lg overflow-hidden border border-[#d4d4d4] bg-white">
+      <GridTable>
+        <GridTableHeader>
+          <GridTableRow className="hover:bg-[#efefef]">
+            <GridTableHead><div className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Date</div></GridTableHead>
+            <GridTableHead><div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Description</div></GridTableHead>
+            <GridTableHead><div className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" />Account</div></GridTableHead>
+            <GridTableHead className="text-right"><div className="flex items-center justify-end gap-1.5"><TrendingUp className="h-3.5 w-3.5" />Debit</div></GridTableHead>
+            <GridTableHead className="text-right"><div className="flex items-center justify-end gap-1.5"><TrendingDown className="h-3.5 w-3.5" />Credit</div></GridTableHead>
+          </GridTableRow>
+        </GridTableHeader>
+        <TableBody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60 transition-colors">
-              <td className="py-2.5 px-3 text-xs text-gray-500 tabular-nums">{row.date}</td>
-              <td className="py-2.5 px-3 text-gray-800 text-sm">{row.description}</td>
-              <td className="py-2.5 px-3">
-                <span className="bg-gray-100 text-gray-700 rounded px-2 py-0.5 text-xs">
-                  {row.account}
-                </span>
-              </td>
-              <td className="py-2.5 px-3 text-right text-xs tabular-nums text-gray-700">{row.debit}</td>
-              <td className="py-2.5 px-3 text-right text-xs tabular-nums text-gray-700">{row.credit}</td>
-            </tr>
+            <GridTableRow key={i}>
+              <GridTableCell className="tabular-nums text-[#3a3a3a]">{row.date}</GridTableCell>
+              <GridTableCell>{row.description}</GridTableCell>
+              <GridTableCell><TablePill>{row.account}</TablePill></GridTableCell>
+              <GridTableCell className="text-right tabular-nums">{row.debit}</GridTableCell>
+              <GridTableCell className="text-right tabular-nums">{row.credit}</GridTableCell>
+            </GridTableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </GridTable>
     </div>
   )
 }
@@ -319,30 +324,30 @@ function TasksTab({ documents, isLoading }: TasksTabProps) {
           </p>
 
           {/* Document list */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50/60">
-                  <ColHeader icon={<Receipt className="h-3.5 w-3.5" />} label="Document" />
-                  <ColHeader icon={<Tag className="h-3.5 w-3.5" />} label="Extraction" />
-                  <ColHeader icon={<Calendar className="h-3.5 w-3.5" />} label="Date" />
-                  <ColHeader icon={<FileText className="h-3.5 w-3.5" />} label="Status" />
-                  <ColHeader icon={<Hash className="h-3.5 w-3.5" />} label="Amount" align="right" />
-                </tr>
-              </thead>
-              <tbody>
+          <div className="rounded-lg overflow-hidden border border-[#d4d4d4] bg-white">
+            <GridTable>
+              <GridTableHeader>
+                <GridTableRow className="hover:bg-[#efefef]">
+                  <GridTableHead><div className="flex items-center gap-1.5"><Receipt className="h-3.5 w-3.5" />Document</div></GridTableHead>
+                  <GridTableHead><div className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5" />Extraction</div></GridTableHead>
+                  <GridTableHead><div className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Date</div></GridTableHead>
+                  <GridTableHead><div className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Status</div></GridTableHead>
+                  <GridTableHead className="text-right"><div className="flex items-center justify-end gap-1.5"><Hash className="h-3.5 w-3.5" />Amount</div></GridTableHead>
+                </GridTableRow>
+              </GridTableHeader>
+              <TableBody>
                 {filteredDocs.map((doc) => (
-                  <tr
+                  <GridTableRow
                     key={doc.id}
                     onClick={() => router.push(`/documents/${doc.id}`)}
-                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors group"
+                    className="cursor-pointer group"
                   >
-                    <td className="py-2.5 px-3">
-                      <span className="text-gray-800 text-sm font-medium group-hover:text-[#1a2744] transition-colors">
-                        {doc.file?.name ?? "Document"}
+                    <GridTableCell>
+                      <span className="text-[#252525] font-medium group-hover:text-[#1a2744] transition-colors">
+                        {doc.name ?? "Document"}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3">
+                    </GridTableCell>
+                    <GridTableCell>
                       <span
                         className={cn(
                           "rounded px-2 py-0.5 text-xs font-medium",
@@ -351,11 +356,11 @@ function TasksTab({ documents, isLoading }: TasksTabProps) {
                       >
                         {doc.extractionStatus}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-xs text-gray-500 tabular-nums">
+                    </GridTableCell>
+                    <GridTableCell className="tabular-nums text-[#444]">
                       {new Date(doc.createdAt).toLocaleDateString("en-MY")}
-                    </td>
-                    <td className="py-2.5 px-3">
+                    </GridTableCell>
+                    <GridTableCell>
                       <span
                         className={cn(
                           "rounded px-2 py-0.5 text-xs font-medium",
@@ -364,14 +369,12 @@ function TasksTab({ documents, isLoading }: TasksTabProps) {
                       >
                         {doc.documentStatus.replace("_", " ")}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right text-xs tabular-nums font-medium text-gray-500">
-                      N/A
-                    </td>
-                  </tr>
+                    </GridTableCell>
+                    <GridTableCell className="text-right tabular-nums font-medium">N/A</GridTableCell>
+                  </GridTableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </GridTable>
           </div>
 
           <button className="text-sm text-gray-500 hover:text-gray-700 mt-3 transition-colors flex items-center gap-1.5">
@@ -489,20 +492,44 @@ function GLUploadModal({
 
 // ─── Main LedgerPage ───────────────────────────────────────────────────────
 
-export function LedgerPage({ sessionId }: { sessionId: string }) {
+export function LedgerPage({ ledgerId }: { ledgerId: string }) {
   const { user } = useAuth()
-  // companyId is scoped by JWT on the backend; kept here for future use
   const _companyId = user?.companyId ?? ""
 
   const [mainTab, setMainTab] = useState<MainTab>("Overview")
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [chatPrompt, setChatPrompt] = useState("")
+  const chatFileInputRef = useRef<HTMLInputElement>(null)
 
+  const { data: ledger } = useLedger(ledgerId)
+  const { sendMessage: sendChatMessage, isLoading: chatLoading } = useLedgerChat(
+    ledgerId,
+    ledger?.fiscalYear,
+  )
+
+  const handleChatSend = async () => {
+    const text = chatPrompt.trim()
+    if (!text || chatLoading) return
+    setChatPrompt("")
+    try {
+      await sendChatMessage(text)
+    } catch {
+      toast.error("Failed to send message. Please try again.")
+    }
+  }
+
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleChatSend()
+    }
+  }
   const { data: glStatus } = useGLStatus()
   const { data: glTransactions, isLoading: glLoading } = useGLTransactions({ limit: 100 })
   const { data: allDocuments = [], isLoading: docsLoading } = useDocuments()
 
-  // Filter documents to only those belonging to this session
-  const documents = allDocuments.filter((d) => d.sessionId === sessionId)
+  // Filter documents to only those belonging to this ledger
+  const documents = allDocuments.filter((d) => d.ledgerId === ledgerId)
 
   const exportGL = useExportGL()
 
@@ -516,9 +543,9 @@ export function LedgerPage({ sessionId }: { sessionId: string }) {
     balance: tx.balance.toLocaleString("en-MY", { minimumFractionDigits: 2 }),
   }))
 
-  const pageTitle = glStatus?.initialized
+  const pageTitle = ledger?.name ?? (glStatus?.initialized
     ? `General Ledger ${glStatus.fiscalYear ?? ""}`
-    : "General Ledger"
+    : "General Ledger")
 
   const handleExport = async () => {
     try {
@@ -575,25 +602,67 @@ export function LedgerPage({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
+      {/* Ledger chat box */}
+      <div className="px-6 pt-4">
+        <div className="rounded-3xl border border-gray-200 bg-[#f7f7f7] p-4">
+          <input
+            ref={chatFileInputRef}
+            type="file"
+            multiple
+            accept="application/pdf,image/*,.csv,.xlsx,.xls,.doc,.docx"
+            className="hidden"
+          />
+          <textarea
+            value={chatPrompt}
+            onChange={(e) => setChatPrompt(e.target.value)}
+            onKeyDown={handleChatKeyDown}
+            placeholder="Ask about your company financial highlights"
+            disabled={chatLoading}
+            className="w-full resize-none bg-transparent text-[15px] text-gray-800 placeholder:text-gray-500 outline-none min-h-[74px] disabled:opacity-60"
+          />
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => chatFileInputRef.current?.click()}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-700 hover:bg-gray-200/70 transition-colors"
+              aria-label="Attach file"
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleChatSend}
+              disabled={!chatPrompt.trim() || chatLoading}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-800 border border-gray-200 hover:bg-gray-100 transition-colors disabled:opacity-40"
+              aria-label="Send prompt"
+            >
+              {chatLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* GL status pill */}
       {glStatus && (
-        <div className="px-6 py-2 border-b border-gray-100 flex items-center gap-3 text-xs text-gray-500">
+        <div className="mx-6 mt-4 px-5 py-3 border-l-[4px] border-l-[#f59e0b] bg-[#f6ead8] flex items-center gap-3 text-sm text-gray-700">
           {glStatus.initialized ? (
             <>
-              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-              <span>GL initialised · Fiscal year {glStatus.fiscalYear} · {glStatus.transactionCount ?? 0} transactions</span>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="font-medium">Ledger Summary</span>
+              <span className="text-gray-600">GL initialised · Fiscal year {glStatus.fiscalYear} · {glStatus.transactionCount ?? 0} transactions</span>
             </>
           ) : (
             <>
-              <AlertCircle className="h-3.5 w-3.5 text-orange-400" />
-              <span>No general ledger uploaded yet</span>
+              <AlertCircle className="h-4 w-4 text-orange-500" />
+              <span className="font-medium">Ledger Summary</span>
+              <span className="text-gray-600">No general ledger uploaded yet</span>
             </>
           )}
         </div>
       )}
 
       {/* Main tab navigation */}
-      <div className="flex gap-1 px-6 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className="flex gap-1 px-6 py-3 border-b border-gray-100 flex-shrink-0 mt-3">
         {MAIN_TABS.map((tab) => (
           <button
             key={tab}

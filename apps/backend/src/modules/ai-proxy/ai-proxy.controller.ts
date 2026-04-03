@@ -34,7 +34,7 @@ export class AiProxyController {
   @ApiResponse({ status: 400, description: 'filename and contentType are required' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   ocrPresign(
-    @Body() body: { filename: string; contentType: string; sessionId?: string; fileId?: string },
+    @Body() body: { filename: string; contentType: string; sessionId?: string; documentId?: string },
     @Request() req: RequestWithUser,
   ) {
     if (!body.filename || !body.contentType) {
@@ -71,16 +71,16 @@ export class AiProxyController {
   @Post('ocr/jobs/:docId/process')
   @ApiOperation({ summary: 'Process OCR results and map to journal entries' })
   @ApiParam({ name: 'docId', type: 'string' })
-  @ApiQuery({ name: 'fiscal_year', required: false })
+  @ApiQuery({ name: 'ledgerId', required: false, description: 'Ledger ID to resolve fiscal year and ledger scope' })
   @ApiResponse({ status: 201, description: 'Processing started' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   ocrJobProcess(
     @Param('docId') docId: string,
     @Body() body: Record<string, unknown>,
-    @Query('fiscal_year') fiscalYear: string,
+    @Query('ledgerId') ledgerId: string,
     @Request() req: RequestWithUser,
   ) {
-    return this.aiProxyService.ocrJobProcess(docId, body, fiscalYear, req.user.id);
+    return this.aiProxyService.ocrJobProcess(docId, body, ledgerId, req.user.id);
   }
 
   // ── Document Enrichment ───────────────────────────────────────────────────
@@ -207,6 +207,19 @@ export class AiProxyController {
     @Request() req: RequestWithUser,
   ) {
     return this.aiProxyService.createAiChatSession(body, req.user.id);
+  }
+
+  @Post('chat/sessions/:sessionId/messages')
+  @ApiOperation({ summary: 'Send a message to an AI chat session' })
+  @ApiParam({ name: 'sessionId', type: 'string' })
+  @ApiResponse({ status: 201, description: 'Message sent, AI response returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  sendChatMessage(
+    @Param('sessionId') sessionId: string,
+    @Body() body: { message: string },
+    @Request() req: RequestWithUser,
+  ) {
+    return this.aiProxyService.sendChatMessage(sessionId, body.message, req.user.id);
   }
 
   @Post('chat/sessions/:sessionId/upload')

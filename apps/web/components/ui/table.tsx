@@ -104,6 +104,72 @@ function TableCaption({
   )
 }
 
+function GridTable({ className, ...props }: React.ComponentProps<'table'>) {
+  return (
+    <Table
+      className={cn(
+        'border-collapse text-[15px] [&_th]:border-b [&_td]:border-b [&_tr>*:not(:last-child)]:border-r [&_th]:border-[#d4d4d4] [&_td]:border-[#d4d4d4]',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+function GridTableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
+  return (
+    <TableHeader
+      className={cn('bg-[#efefef] [&_tr]:border-0', className)}
+      {...props}
+    />
+  )
+}
+
+function GridTableRow({ className, ...props }: React.ComponentProps<'tr'>) {
+  return (
+    <TableRow
+      className={cn('border-0 bg-white hover:bg-[#fafafa]', className)}
+      {...props}
+    />
+  )
+}
+
+function GridTableHead({ className, ...props }: React.ComponentProps<'th'>) {
+  return (
+    <TableHead
+      className={cn(
+        'h-12 px-4 text-[15px] font-medium text-[#3a3a3a] [&:has(svg)]:gap-1.5',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+function GridTableCell({ className, ...props }: React.ComponentProps<'td'>) {
+  return (
+    <TableCell
+      className={cn('px-4 py-3 text-[#313131] text-[15px]', className)}
+      {...props}
+    />
+  )
+}
+
+function TablePill({
+  className,
+  ...props
+}: React.ComponentProps<'span'>) {
+  return (
+    <span
+      className={cn(
+        'inline-flex max-w-full items-center rounded-full bg-[#ececec] px-3 py-0.5 text-[15px] font-medium text-[#333] truncate',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
 export {
   Table,
   TableHeader,
@@ -113,4 +179,10 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  GridTable,
+  GridTableHeader,
+  GridTableRow,
+  GridTableHead,
+  GridTableCell,
+  TablePill,
 }

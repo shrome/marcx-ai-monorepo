@@ -30,7 +30,10 @@ See `.github/copilot-instructions.md` → "Progress Tracking" section for the fu
 | 9 | [009-checkpoints-to-project-frontend-sync.md](./009-checkpoints-to-project-frontend-sync.md) | Checkpoints in project repo, frontend TS clean, Playwright auth fixed ✅ |
 | 10 | [010-frontend-api-alignment.md](./010-frontend-api-alignment.md) | Frontend API alignment: documents response fix, sidebar cleanup, ledger page full refactor ✅ |
 | 11 | [011-phase-5-6-invitation-session-gl.md](./011-phase-5-6-invitation-session-gl.md) | Phase 5 (Invitation): schema+migration+backend module+frontend UI ✅. Phase 6 (Session=GL): session scoping fix, AI proxy bridge fields, /ledger list+detail pages, sidebar dynamic sessions ✅ |
-| 12 | [012-schema-refactor-ledger-file-merge.md](./012-schema-refactor-ledger-file-merge.md) | **CURRENT** — Schema refactor: Added `ledger` table, merged `File` into `Document`, removed `fiscalYear` from Session, expanded ChatRole enum. Full backend Phase 2 done (Ledger module + all services updated). Build: ✅ 0 errors |
+| 12 | [012-schema-refactor-ledger-file-merge.md](./012-schema-refactor-ledger-file-merge.md) | Schema refactor: Added `ledger` table, merged `File` into `Document`, removed `fiscalYear` from Session, expanded ChatRole enum. Full backend Phase 2 done. Build: ✅ |
+| 13 | [013-schema-refactor-ledger-table-f.md](./013-schema-refactor-ledger-table-f.md) | Phase 2E (AI proxy ledgerId) + Phase 3 frontend complete: LedgerClient, hooks, pages, sidebar. Both builds ✅ |
+| 14 | [014-phase-2-backend-complete-phase.md](./014-phase-2-backend-complete-phase.md) | Phase 4 complete: 96 backend E2E tests ✅ (ledger suite 23 tests), Playwright specs updated. Bug fixed: LedgerController wrong route prefix. All 18/18 todos done. |
+| 15 | [015-ledger-creation-chat-flow-complete.md](./015-ledger-creation-chat-flow-complete.md) | **CURRENT** — Full ledger creation flow (composite endpoint + CreateLedgerDialog) + AI chat wiring (GlobalChatPanel reworked, useLedgerChat hook, LedgerPage chat box). Both builds ✅ |
 
 ---
 

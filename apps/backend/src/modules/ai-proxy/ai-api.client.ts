@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import FormData from 'form-data';
 
 interface AiApiHeaders {
   tenantId?: string;
@@ -100,6 +101,31 @@ export class AiApiClient {
       return res.data;
     } catch (error) {
       this.handleError(error, `DELETE ${path}`);
+    }
+  }
+
+  async postMultipartBuffer<T>(
+    path: string,
+    ctx: AiApiHeaders,
+    fields: Record<string, string>,
+    file: { buffer: Buffer; filename: string; mimeType: string; fieldName?: string },
+  ): Promise<T> {
+    try {
+      const form = new FormData();
+      Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+      form.append(file.fieldName ?? 'file', file.buffer, {
+        filename: file.filename,
+        contentType: file.mimeType,
+      });
+      const res = await this.http.post<T>(path, form, {
+        headers: {
+          ...this.buildHeaders(ctx),
+          ...form.getHeaders(),
+        },
+      });
+      return res.data;
+    } catch (error) {
+      this.handleError(error, `POST ${path} (multipart)`);
     }
   }
 

@@ -2,10 +2,16 @@ import { Backend } from './base';
 
 export interface Document {
   id: string;
-  fileId: string;
   companyId: string;
   sessionId?: string | null;
+  ledgerId?: string | null;
+  chatId?: string | null;
   uploadedBy: string;
+  uploadSource?: 'chat' | 'upload' | 'api' | 'bulk_import' | null;
+  name: string;
+  url: string;
+  size: string;
+  mimeType: string;
   extractionStatus: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   documentStatus: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED';
   rawData?: Record<string, unknown> | null;
@@ -17,13 +23,6 @@ export interface Document {
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  file?: {
-    id: string;
-    name: string;
-    url: string;
-    size: number;
-    mimeType: string;
-  };
 }
 
 export interface UpdateDocumentDraftDto {
@@ -33,6 +32,7 @@ export interface UpdateDocumentDraftDto {
 
 export interface ListDocumentsQuery {
   sessionId?: string;
+  ledgerId?: string;
   extractionStatus?: string;
   documentStatus?: string;
   page?: number;
@@ -51,6 +51,7 @@ export class DocumentClient extends Backend {
   async findAll(query?: ListDocumentsQuery): Promise<{ data: Document[]; page: number; limit: number }> {
     const params = new URLSearchParams();
     if (query?.sessionId) params.set('sessionId', query.sessionId);
+    if (query?.ledgerId) params.set('ledgerId', query.ledgerId);
     if (query?.extractionStatus) params.set('extractionStatus', query.extractionStatus);
     if (query?.documentStatus) params.set('documentStatus', query.documentStatus);
     if (query?.page) params.set('page', String(query.page));
