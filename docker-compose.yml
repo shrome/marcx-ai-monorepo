@@ -31,6 +31,8 @@ services:
     image: redis:7
     container_name: redis
     restart: unless-stopped
+    ports:
+      - 16379:6379
     volumes:
       - ./docker/redis/data:/data
 
